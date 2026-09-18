@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Remote — DFT</title>
+    <meta name="color-scheme" content="light dark">
+    <script>
+        // Runs before the stylesheet paints, so a stored theme never flashes the other one.
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light' || t === 'dark') {
+                    document.documentElement.setAttribute('data-theme', t);
+                }
+            } catch (e) { /* private mode, blocked storage — fall back to the system theme */ }
+        })();
+    </script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="icon"
+          href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%2314161c'/><rect x='3' y='4' width='3' height='8' rx='1' fill='%23e6e8ef'/><rect x='8' y='4' width='5' height='8' rx='1' fill='%234b3fd4'/></svg>">
+</head>
+<body th:data-has-schedule="${schedule != null}">
+
+<header class="bar">
+    <a class="mark" th:href="@{/}">
+        <span class="mark-name">Remote</span>
+        <span class="mark-rule" aria-hidden="true"></span>
+        <span class="mark-unit">DFT</span>
+    </a>
+
+    <nav class="weeknav" aria-label="Week">
+        <a class="step" th:href="@{/(week=${prevWeek})}" rel="prev"
+           th:title="'Week of ' + ${prevWeek}" aria-label="Previous week">&#8249;</a>
+
+        <span class="weeknav-mid">
+            <b th:text="'W' + ${weekNumber}">W39</b>
+            <span th:text="${weekRange}">21 – 25 sept. 2026</span>
+        </span>
+
+        <a class="step" th:href="@{/(week=${nextWeek})}" rel="next"
+           th:title="'Week of ' + ${nextWeek}" aria-label="Next week">&#8250;</a>
+
+        <a class="today" th:href="@{/}"
+           th:classappend="${shownWeek == currentWeek} ? 'is-hidden' : ''">Today</a>
+    </nav>
+
+    <div class="whoami">
+        <a class="who" th:href="@{/password}" title="Signed in — change password">
+            <span class="who-name" sec:authentication="name">you@example.com</span>
+            <span class="tag" sec:authorize="hasRole('ADMIN')">admin</span>
+        </a>
+        <a class="who-link" th:href="@{/admin/users}" sec:authorize="hasRole('ADMIN')">Accounts</a>
+        <a class="who-link" th:href="@{/logout}">Sign out</a>
+    </div>
+
+    <div class="theme" role="radiogroup" aria-label="Colour theme">
+        <button type="button" class="theme-opt" data-theme-set="light"
+                role="radio" aria-checked="false" title="Light">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+            </svg>
+            <span class="sr-only">Light</span>
+        </button>
+
+        <button type="button" class="theme-opt" data-theme-set="system"
+                role="radio" aria-checked="false" title="Match the system">
+            Auto<span class="sr-only"> — match the system</span>
+        </button>
+
+        <button type="button" class="theme-opt" data-theme-set="dark"
+                role="radio" aria-checked="false" title="Dark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+            </svg>
+            <span class="sr-only">Dark</span>
+        </button>
+    </div>
+
+    <div class="bar-meta">
+        <span th:if="${shownWeek == currentWeek}" class="pill pill-now">This week</span>
+        <span th:if="${shownWeek > currentWeek}" class="pill">Upcoming</span>
+        <span th:if="${shownWeek < currentWeek}" class="pill pill-past">Past</span>
+    </div>
+</header>
+
+<main>
+
+    <div class="wrap notices">
+        <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+    </div>
+
+    <!-- ── Masthead ─────────────────────────────────────────────────────── -->
+    <section class="wrap masthead">
+        <div class="masthead-left">
+            <span class="eyebrow">Semaine</span>
+            <h1 class="display" th:text="${weekNumber}">39</h1>
+        </div>
+
+        <div class="masthead-right">
+            <dl class="facts" th:if="${schedule != null}">
+                <div>
+                    <dt>Remote days</dt>
+                    <dd class="num" th:text="${schedule.totalRemoteDays}">48</dd>
+                </div>
+                <div>
+                    <dt>People</dt>
+                    <dd class="num" th:text="${#lists.size(schedule.roster)}">16</dd>
+                </div>
+                <div>
+                    <dt>Each</dt>
+                    <dd class="num" th:text="${remotesPerPerson}">3</dd>
+                </div>
+                <div>
+                    <dt>Max run</dt>
+                    <dd class="num" th:text="${maxConsecutiveDays}">2</dd>
+                </div>
+            </dl>
+
+            <p class="provenance" th:if="${schedule != null}">
+                generated <span th:text="${#temporals.format(schedule.generatedAt, 'd MMM, HH:mm')}">—</span>
+                by <span class="src" th:text="${schedule.generatedBy}">scheduler</span>
+            </p>
+
+            <div class="actions">
+                <form method="post" th:action="@{/generate}"
+                      th:if="${schedule == null}" sec:authorize="hasRole('ADMIN')">
+                    <input type="hidden" name="week" th:value="${shownWeek}">
+                    <button type="submit" class="btn btn-primary">Generate this week</button>
+                </form>
+
+                <a class="btn" th:if="${schedule != null}"
+                   th:href="@{'/api/schedules/' + ${shownWeek} + '/export'}">Export .xlsx</a>
+
+                <form method="post" th:action="@{/generate}"
+                      th:if="${schedule != null}" sec:authorize="hasRole('ADMIN')">
+                    <input type="hidden" name="week" th:value="${shownWeek}">
+                    <input type="hidden" name="replace" value="true">
+                    <button type="submit" class="btn btn-quiet">Re-roll</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── The wall chart ───────────────────────────────────────────────── -->
+    <section class="wrap chart-wrap" th:if="${schedule != null}">
+        <table class="chart">
+            <caption class="sr-only">
+                Remote days per person for the week of <span th:text="${shownWeek}"></span>
+            </caption>
+
+            <thead>
+            <tr>
+                <th class="c-name" scope="col"><span class="sr-only">Person</span></th>
+                <th class="c-day" scope="col" th:each="day : ${schedule.days}"
+                    th:classappend="${day.index == todayIndex} ? 'is-today' : ''">
+                    <span class="d-abbr" th:text="${#strings.toUpperCase(#strings.substring(day.name,0,3))}">LUN</span>
+                    <span class="d-full" th:text="${day.name}">Lundi</span>
+                    <span class="d-load">
+                        <b class="num" th:text="${day.count}">10</b><i th:text="'/' + ${day.capacity}">/10</i>
+                    </span>
+                    <span class="meter" th:title="${day.count} + ' of ' + ${day.capacity} + ' slots used'">
+                        <span class="meter-fill"
+                              th:style="'width:' + ${day.fillPercent} + '%'"
+                              th:classappend="${day.count == day.capacity} ? 'is-full' : ''"></span>
+                    </span>
+                </th>
+                <th class="c-total" scope="col"><span class="sr-only">Total</span>&Sigma;</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr th:each="row : ${schedule.roster}"
+                th:classappend="(${row.count != remotesPerPerson} ? 'is-off-quota ' : '')
+                              + (${row.name == myRosterName} ? 'is-me' : '')">
+
+                <th class="c-name" scope="row">
+                    <span th:text="${row.name}">Sara</span>
+                    <span class="tag tag-me" th:if="${row.name == myRosterName}">you</span>
+                </th>
+
+                <td class="c-cell" th:each="cell : ${row.cells}"
+                    th:classappend="${cell.dayIndex == todayIndex} ? 'is-today' : ''"
+                    th:attr="data-on=${cell.remote},data-jl=${cell.joinLeft},data-jr=${cell.joinRight}"
+                    th:title="${row.name} + ' — ' + ${dayNames[cell.dayIndex]} + (${cell.remote} ? ' · remote' : ' · office')">
+                    <span class="blk"></span>
+                    <span class="sr-only" th:text="${cell.remote} ? 'remote' : 'office'">office</span>
+                </td>
+
+                <td class="c-total num" th:text="${row.count}">3</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <p class="legend">
+            <span class="key"><i class="key-on"></i> remote</span>
+            <span class="key"><i class="key-off"></i> office</span>
+            <span class="key-note">adjacent days join into one bar — a bar spanning
+                <span th:text="${maxConsecutiveDays + 1}">3</span> days would break the rule</span>
+        </p>
+    </section>
+
+    <!-- ── Empty week ───────────────────────────────────────────────────── -->
+    <section class="wrap chart-wrap" th:if="${schedule == null}">
+        <table class="chart is-ghost" aria-hidden="true">
+            <thead>
+            <tr>
+                <th class="c-name"></th>
+                <th class="c-day" th:each="name : ${dayNames}">
+                    <span class="d-abbr" th:text="${#strings.toUpperCase(#strings.substring(name,0,3))}">LUN</span>
+                    <span class="d-full" th:text="${name}">Lundi</span>
+                    <span class="d-load"><b class="num">–</b></span>
+                    <span class="meter"><span class="meter-fill" style="width:0"></span></span>
+                </th>
+                <th class="c-total">&Sigma;</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="person : ${people}">
+                <th class="c-name" th:text="${person}">Sara</th>
+                <td class="c-cell" th:each="name : ${dayNames}"><span class="blk"></span></td>
+                <td class="c-total num">–</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="ghost-veil">
+            <p class="ghost-title">No schedule for this week yet</p>
+            <p class="ghost-sub" sec:authorize="hasRole('ADMIN')">The Thursday job plans the
+                coming week on its own. Generate this one now if you would rather not wait.</p>
+            <p class="ghost-sub" sec:authorize="!hasRole('ADMIN')">The Thursday job plans the
+                coming week on its own. An admin can generate this one sooner.</p>
+        </div>
+    </section>
+
+</main>
+
+<footer class="wrap foot">
+    <span>dft-remote-scheduler</span>
+    <span class="foot-sep">·</span>
+    <a href="/api/schedules">API</a>
+    <span class="foot-sep">·</span>
+    <span class="kbd-hint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> to change week</span>
+</footer>
+
+<script th:inline="javascript">
+    // Light / System / Dark. "System" simply removes the override.
+    (function () {
+        var root = document.documentElement;
+        var buttons = document.querySelectorAll('[data-theme-set]');
+
+        function stored() {
+            try {
+                var t = localStorage.getItem('theme');
+                return (t === 'light' || t === 'dark') ? t : 'system';
+            } catch (e) { return 'system'; }
+        }
+
+        function apply(choice) {
+            if (choice === 'light' || choice === 'dark') {
+                root.setAttribute('data-theme', choice);
+            } else {
+                root.removeAttribute('data-theme');
+            }
+
+            buttons.forEach(function (b) {
+                var on = b.getAttribute('data-theme-set') === choice;
+                b.classList.toggle('is-on', on);
+                b.setAttribute('aria-checked', String(on));
+            });
+        }
+
+        buttons.forEach(function (b) {
+            b.addEventListener('click', function () {
+                var choice = b.getAttribute('data-theme-set');
+                try {
+                    if (choice === 'system') localStorage.removeItem('theme');
+                    else localStorage.setItem('theme', choice);
+                } catch (e) { /* not stored, but the page still switches for this visit */ }
+                apply(choice);
+            });
+        });
+
+        apply(stored());
+    })();
+
+    // Arrow keys step through weeks — the one shortcut worth having on a page you
+    // mostly use to look backwards and forwards.
+    (function () {
+        var prev = /*[[@{/(week=${prevWeek})}]]*/ '/';
+        var next = /*[[@{/(week=${nextWeek})}]]*/ '/';
+
+        document.addEventListener('keydown', function (e) {
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            var t = e.target.tagName;
+            if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA') return;
+
+            if (e.key === 'ArrowLeft') location.href = prev;
+            if (e.key === 'ArrowRight') location.href = next;
+        });
+    })();
+</script>
+
+</body>
+</html>

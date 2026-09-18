@@ -1,0 +1,5 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/changes/000-init-schema.yaml
+  - include:
+      file: db/changelog/changes/001-app-user.yaml

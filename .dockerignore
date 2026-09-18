@@ -1,0 +1,17 @@
+# Build output — the image builds from source, it does not ship your local artifacts.
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+.git/
+.github/
+.idea/
+*.iml
+.vscode/
+
+# Local-only
+data/
+schedules/
+.env
+*.log
+README.md

@@ -1,0 +1,10 @@
+# The datasource is supplied by the Testcontainers Postgres in
+# AbstractPostgresIntegrationTest, so nothing is configured here.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+remote:
+  job:
+    enabled: false

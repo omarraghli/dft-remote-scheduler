@@ -1,0 +1,27 @@
+# Pinned so the generated volume name does not depend on the directory name — renaming the
+# folder would otherwise orphan the database.
+name: dft-remote-scheduler
+
+services:
+  dft-remote-db:
+    image: postgres:16-alpine
+    container_name: dft-remote-db
+    environment:
+      POSTGRES_DB: dft_remote
+      POSTGRES_USER: dft_remote
+      POSTGRES_PASSWORD: dft_remote
+    # 5432 (postgis), 5433 (hpv) and 5434 (iam) are already taken on this machine.
+    ports:
+      - "5435:5432"
+    volumes:
+      - dft-remote-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dft_remote -d dft_remote"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  dft-remote-db:

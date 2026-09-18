@@ -1,0 +1,112 @@
+spring:
+  application:
+    name: dft-remote-scheduler
+
+  datasource:
+    # Defaults match docker-compose.yml, so `docker compose up -d` then Run works
+    # with no environment set up — including straight from the IDE.
+    #
+    # These are development credentials and are published in this repo; any real
+    # deployment MUST override all three, e.g. SPRING_DATASOURCE_PASSWORD.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5435/dft_remote}
+    username: ${SPRING_DATASOURCE_USERNAME:dft_remote}
+    password: ${SPRING_DATASOURCE_PASSWORD:dft_remote}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    # Liquibase owns the schema; Hibernate only checks the entities still match it.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+  thymeleaf:
+    cache: false
+
+server:
+  port: 8080
+  servlet:
+    session:
+      # Cookie only. Otherwise Tomcat rewrites redirect URLs as /;jsessionid=... on the first
+      # request of a session, which Spring MVC then fails to match — the "Generate" button on
+      # the page 404s for anyone arriving without a session cookie.
+      tracking-modes: cookie
+
+# ---------------------------------------------------------------------------
+# The schedule itself. Nothing here is hardcoded in Java.
+# ---------------------------------------------------------------------------
+remote:
+  people:
+    - Sara
+    - Rajae
+    - Salma
+    - Adam
+    - Oussama
+    - Outman
+    - Ayoub
+    - Omar
+    - Nassim
+    - Adnan
+    - Anass
+    - Mahmoud
+    - Hamza
+    - Nader
+    - MedAli
+    - MedKhalil
+
+  days: [Lundi, Mardi, Mercredi, Jeudi, Vendredi]
+
+  # Remote capacity per day, one entry per day above.
+  slots-per-day: [10, 10, 10, 10, 10]
+
+  # Every person gets exactly this many remote days.
+  remotes-per-person: 3
+
+  # 2 means "never 3 remote days in a row".
+  max-consecutive-days: 2
+
+  # Days with no remote work at all. Mind the capacity: 16 people x 3 days = 48 remote days
+  # needed, against 5 x 10 = 50 slots. Removing a day leaves 40 and makes the week infeasible,
+  # so drop remotes-per-person to 2 for a short week.
+  holidays: []
+
+  # People who cannot be remote on a given day, e.g. the day they come back from vacation.
+  vacation-returns: {}
+  #  Oussama: Lundi
+  #  Sara: Jeudi
+
+  security:
+    bootstrap:
+      # Created only when the account table is empty, so there is someone to sign in as.
+      email: ${REMOTE_ADMIN_EMAIL:admin@cirestechnologies.ma}
+      # Leave unset and a random one is generated and printed to the log once. Either way it
+      # is temporary and must be replaced at first sign-in.
+      password: ${REMOTE_ADMIN_PASSWORD:}
+
+    # Shared secret for machine callers, sent as the X-Service-Token header and treated as an
+    # admin. Empty means no token is accepted at all, which is the default.
+    service-token: ${REMOTE_SERVICE_TOKEN:}
+
+  job:
+    # Off: admins generate each week themselves from the page. The job is kept, not removed —
+    # flip this to true (or set REMOTE_JOB_ENABLED=true) and it plans the coming week again,
+    # which only works on a host that is awake at the time.
+    enabled: ${REMOTE_JOB_ENABLED:false}
+    # Every Thursday at 08:00, planning the week that starts the following Monday.
+    cron: "0 0 8 * * THU"
+    zone: Africa/Casablanca
+
+logging:
+  level:
+    cires.dft.remotescheduler: INFO

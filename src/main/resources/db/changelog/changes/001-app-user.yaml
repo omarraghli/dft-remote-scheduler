@@ -1,0 +1,66 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-app-user
+      author: o.raghli
+      comment: Login accounts. Two roles, an optional link to a roster name, and a
+               flag forcing a temporary password to be replaced at next sign-in.
+      changes:
+        - createTable:
+            tableName: app_user
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_app_user
+                    nullable: false
+              - column:
+                  name: email
+                  type: VARCHAR(190)
+                  remarks: Stored lower-cased; the login identifier.
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_app_user_email
+              - column:
+                  name: password_hash
+                  type: VARCHAR(100)
+                  remarks: BCrypt.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: VARCHAR(16)
+                  remarks: ADMIN or USER.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: roster_name
+                  type: VARCHAR(64)
+                  remarks: Which person on the schedule this account is, if any.
+              - column:
+                  name: active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: must_change_password
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_login_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+      rollback:
+        - dropTable:
+            tableName: app_user

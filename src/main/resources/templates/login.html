@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in — Remote</title>
+    <meta name="color-scheme" content="light dark">
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light' || t === 'dark') {
+                    document.documentElement.setAttribute('data-theme', t);
+                }
+            } catch (e) { /* fall back to the system theme */ }
+        })();
+    </script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="centred">
+
+<main class="gate">
+    <div class="gate-mark">
+        <span class="mark-name">Remote</span>
+        <span class="mark-rule" aria-hidden="true"></span>
+        <span class="mark-unit">DFT</span>
+    </div>
+
+    <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+    <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+    <form method="post" th:action="@{/login}" class="stack">
+        <label class="field">
+            <span>Email</span>
+            <input type="email" name="username" autocomplete="username" required autofocus>
+        </label>
+
+        <label class="field">
+            <span>Password</span>
+            <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+
+    <p class="gate-foot">Accounts are created by an admin.</p>
+</main>
+
+</body>
+</html>

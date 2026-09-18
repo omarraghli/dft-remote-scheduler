@@ -1,0 +1,11 @@
+# Local development against `docker compose up -d`. Activate with:
+#   ./gradlew bootRun --args='--spring.profiles.active=local'
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5435/dft_remote
+    username: dft_remote
+    password: dft_remote
+
+logging:
+  level:
+    cires.dft.remotescheduler: DEBUG

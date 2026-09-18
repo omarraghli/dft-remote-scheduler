@@ -1,0 +1,115 @@
+# Triggers the weekly distribution from outside the application.
+#
+# The app has its own @Scheduled job, and on an always-on host that is all you need. On a free
+# tier that sleeps when idle there is no running JVM at 08:00 on Thursday, so the job silently
+# never fires. This workflow calls the API instead: the request wakes the host and generates
+# the week. Set remote.job.enabled=false there so the two cannot both run.
+
+name: Plan next week
+
+on:
+  # The weekly trigger is switched off: admins generate each week themselves. Uncomment to
+  # turn it back on — and set REMOTE_JOB_ENABLED=false on the server if you do, so the app's
+  # own job and this one cannot both fire.
+  #
+  # schedule:
+  #   # Thursday 07:00 UTC. Morocco sits at UTC+1 for most of the year, so this lands at 08:00
+  #   # local — and at 07:00 local during Ramadan, when the clocks move to UTC+0. Cron has no
+  #   # notion of that, but the job only has to run some time on Thursday and is idempotent,
+  #   # so an hour of drift changes nothing.
+  #   - cron: '0 7 * * 4'
+
+  # Still available by hand from the Actions tab, with an optional week.
+  workflow_dispatch:
+    inputs:
+      week:
+        description: 'Any date inside the target week (YYYY-MM-DD). Leave blank for next week.'
+        required: false
+        type: string
+
+# This workflow touches nothing in the repository.
+permissions: {}
+
+# Two runs generating the same week at once would have one of them fail on the unique
+# constraint. Queue instead.
+concurrency:
+  group: plan-next-week
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Ask the scheduler to plan the week
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check the configuration
+        env:
+          BASE_URL: ${{ secrets.SCHEDULER_BASE_URL }}
+          TOKEN: ${{ secrets.SCHEDULER_SERVICE_TOKEN }}
+        run: |
+          missing=0
+          [ -n "$BASE_URL" ] || { echo "::error::SCHEDULER_BASE_URL is not set"; missing=1; }
+          [ -n "$TOKEN" ]    || { echo "::error::SCHEDULER_SERVICE_TOKEN is not set"; missing=1; }
+          [ "$missing" -eq 0 ] || {
+            echo "Add them under Settings → Secrets and variables → Actions."
+            exit 1
+          }
+
+      - name: Generate
+        env:
+          BASE_URL: ${{ secrets.SCHEDULER_BASE_URL }}
+          TOKEN: ${{ secrets.SCHEDULER_SERVICE_TOKEN }}
+          WEEK: ${{ inputs.week }}
+        run: |
+          set -uo pipefail
+
+          url="${BASE_URL%/}/api/schedules/generate"
+          [ -n "${WEEK:-}" ] && url="$url?week=$WEEK"
+
+          # A sleeping free-tier host can take the better part of a minute to wake, so the
+          # first attempt is expected to be slow rather than broken.
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS --max-time 120 -o /tmp/response.json -w '%{http_code}' \
+                     -X POST -H "X-Service-Token: $TOKEN" "$url") || code=000
+
+            case "$code" in
+              201)
+                echo "Schedule generated."
+                python3 -m json.tool /tmp/response.json | head -40 || cat /tmp/response.json
+                {
+                  echo "### Week planned"
+                  echo '```json'
+                  head -c 800 /tmp/response.json
+                  echo
+                  echo '```'
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              409)
+                # Somebody generated it by hand already. That is a correct outcome, not a
+                # failure — the whole point of the app refusing to overwrite.
+                echo "That week already has a schedule; leaving it alone."
+                echo "### Already planned — nothing to do" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              401|403)
+                echo "::error::Rejected with $code. Check SCHEDULER_SERVICE_TOKEN matches"
+                echo "::error::REMOTE_SERVICE_TOKEN on the server."
+                exit 1
+                ;;
+              422)
+                echo "::error::The constraints cannot be satisfied for that week:"
+                cat /tmp/response.json
+                exit 1
+                ;;
+              *)
+                echo "Attempt $attempt returned $code; waiting before retrying."
+                [ -s /tmp/response.json ] && head -c 300 /tmp/response.json
+                sleep $((attempt * 20))
+                ;;
+            esac
+          done
+
+          echo "::error::No success after 5 attempts. Is $BASE_URL reachable?"
+          exit 1

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Accounts — Remote</title>
+    <meta name="color-scheme" content="light dark">
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light' || t === 'dark') {
+                    document.documentElement.setAttribute('data-theme', t);
+                }
+            } catch (e) { /* fall back to the system theme */ }
+        })();
+    </script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+
+<header class="bar">
+    <a class="mark" th:href="@{/}">
+        <span class="mark-name">Remote</span>
+        <span class="mark-rule" aria-hidden="true"></span>
+        <span class="mark-unit">DFT</span>
+    </a>
+
+    <nav class="crumbs">
+        <a th:href="@{/}">Schedule</a>
+        <span>/</span>
+        <b>Accounts</b>
+    </nav>
+
+    <div class="bar-meta">
+        <a class="btn btn-quiet btn-sm" th:href="@{/logout}">Sign out</a>
+    </div>
+</header>
+
+<main class="wrap">
+
+    <div class="notices">
+        <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+    </div>
+
+    <!-- Shown once, right after issuing. There is no way to see it again. -->
+    <section class="secret" th:if="${issuedPassword}">
+        <p class="secret-label">Temporary password for
+            <b th:text="${issuedFor}">someone@example.com</b></p>
+        <p class="secret-value num" th:text="${issuedPassword}">k7Rm-pQ2x-Tb9w</p>
+        <p class="secret-note">Copy it now — it is not stored and will not be shown again.
+            They will be asked to replace it as soon as they sign in.</p>
+    </section>
+
+    <section class="masthead">
+        <div class="masthead-left">
+            <span class="eyebrow">Accounts</span>
+            <h1 class="display" th:text="${#lists.size(users)}">4</h1>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title">Add an account</h2>
+
+        <form method="post" th:action="@{/admin/users}" class="row-form">
+            <label class="field">
+                <span>Email</span>
+                <input type="email" name="email" required placeholder="prenom.nom@cirestechnologies.ma">
+            </label>
+
+            <label class="field">
+                <span>Role</span>
+                <select name="role">
+                    <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}"
+                            th:selected="${r.name() == 'USER'}">User</option>
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Roster name</span>
+                <select name="rosterName">
+                    <option value="">— none —</option>
+                    <option th:each="n : ${rosterNames}" th:value="${n}" th:text="${n}">Sara</option>
+                </select>
+            </label>
+
+            <button type="submit" class="btn btn-primary">Create</button>
+        </form>
+
+        <p class="panel-note">A temporary password is generated and shown once. They choose
+            their own the first time they sign in.</p>
+    </section>
+
+    <table class="users">
+        <thead>
+        <tr>
+            <th scope="col">Email</th>
+            <th scope="col">Role</th>
+            <th scope="col">Roster</th>
+            <th scope="col">Status</th>
+            <th scope="col">Last seen</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="u : ${users}" th:classappend="${!u.active} ? 'is-inactive' : ''">
+            <td class="u-email">
+                <span th:text="${u.email}">someone@example.com</span>
+                <span class="tag" th:if="${u.id == meId}">you</span>
+            </td>
+
+            <td>
+                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/role'}" class="inline">
+                    <select name="role" onchange="this.form.submit()"
+                            th:disabled="${u.id == meId}">
+                        <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}"
+                                th:selected="${r == u.role}">User</option>
+                    </select>
+                </form>
+            </td>
+
+            <td class="u-roster" th:text="${u.rosterName} ?: '—'">Sara</td>
+
+            <td>
+                <span class="pill" th:classappend="${u.active} ? 'pill-now' : 'pill-past'"
+                      th:text="${u.active} ? 'Active' : 'Disabled'">Active</span>
+                <span class="pill pill-warn" th:if="${u.mustChangePassword}">Temp password</span>
+            </td>
+
+            <td class="u-seen num"
+                th:text="${u.lastLoginAt} != null
+                         ? ${#temporals.format(u.lastLoginAt, 'd MMM HH:mm')} : 'never'">never</td>
+
+            <td class="u-actions">
+                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/reset-password'}"
+                      class="inline">
+                    <button type="submit" class="btn btn-quiet btn-sm">Reset password</button>
+                </form>
+
+                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/active'}"
+                      class="inline" th:if="${u.id != meId}">
+                    <input type="hidden" name="active" th:value="${!u.active}">
+                    <button type="submit" class="btn btn-quiet btn-sm"
+                            th:text="${u.active} ? 'Deactivate' : 'Reactivate'">Deactivate</button>
+                </form>
+
+                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/delete'}"
+                      class="inline" th:if="${u.id != meId}"
+                      onsubmit="return confirm('Delete this account permanently? This cannot be undone.');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+</main>
+
+<footer class="wrap foot">
+    <span>dft-remote-scheduler</span>
+    <span class="foot-sep">·</span>
+    <a th:href="@{/}">Schedule</a>
+</footer>
+
+</body>
+</html>
