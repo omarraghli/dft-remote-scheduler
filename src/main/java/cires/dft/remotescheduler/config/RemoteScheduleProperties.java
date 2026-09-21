@@ -6,9 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Everything about the schedule lives in {@code application.yml} under {@code remote.*} so the
@@ -40,9 +38,6 @@ public class RemoteScheduleProperties {
 
     /** Day names with no remote work, matched against {@link #days} ignoring case. */
     private List<String> holidays = new ArrayList<>();
-
-    /** Person to day name, for people who cannot be remote on a given day (vacation returns). */
-    private Map<String, String> vacationReturns = new LinkedHashMap<>();
 
     public List<String> getPeople() {
         return people;
@@ -90,13 +85,5 @@ public class RemoteScheduleProperties {
 
     public void setHolidays(List<String> holidays) {
         this.holidays = holidays;
-    }
-
-    public Map<String, String> getVacationReturns() {
-        return vacationReturns;
-    }
-
-    public void setVacationReturns(Map<String, String> vacationReturns) {
-        this.vacationReturns = vacationReturns;
     }
 }

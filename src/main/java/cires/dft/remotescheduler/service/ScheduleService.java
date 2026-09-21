@@ -261,7 +261,7 @@ public class ScheduleService {
      * quota, lowered by {@link HolidayCalendar} for a short week — depends on the week being
      * planned. The weekday names in {@code remote.holidays} apply to every week and are added on
      * top, without touching the quota. That week's {@link WeekPlan} arrives the same way: the
-     * on-site days join the blocked ones, the wishes stay wishes.
+     * on-site days are blocked days, the wishes stay wishes.
      */
     SolverInput toSolverInput(LocalDate week) {
         List<String> days = properties.getDays();
@@ -273,16 +273,11 @@ public class ScheduleService {
 
         WeekPlan plan = weekPlans.forWeek(week);
 
-        Map<String, Set<Integer>> forbiddenDays = new HashMap<>();
-        for (Map.Entry<String, String> entry : properties.getVacationReturns().entrySet()) {
-            int dayIndex = requireDayIndex(entry.getValue(), "remote.vacation-returns");
-            forbiddenDays.computeIfAbsent(entry.getKey(), k -> new HashSet<>()).add(dayIndex);
-        }
         // A day somebody is held in the office on is closed for them exactly as a holiday is
-        // closed for everyone, and adds to whatever else already blocks them that week.
+        // closed for everyone.
+        Map<String, Set<Integer>> forbiddenDays = new HashMap<>();
         for (Map.Entry<String, Set<Integer>> entry : plan.onSite().entrySet()) {
-            forbiddenDays.computeIfAbsent(entry.getKey(), k -> new HashSet<>())
-                    .addAll(entry.getValue());
+            forbiddenDays.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
 
         int[] slotsPerDay = new int[properties.getSlotsPerDay().size()];

@@ -78,14 +78,11 @@ remote:
 
   # Weekday names with no remote work, in every week — a standing closure, not a date. Public
   # holidays go under public-holidays below, which is dated and lowers the quota on its own.
+  # One person off on one day is not this: that is an on-site day, set for the week it falls in
+  # at /admin/week, because a return from vacation is a date and not every Tuesday.
   # Mind the capacity: 16 people x 3 days = 48 remote days needed, against 5 x 10 = 50 slots.
   # Removing a day leaves 40 and makes the week infeasible, so drop remotes-per-person to 2.
   holidays: []
-
-  # People who cannot be remote on a given day, e.g. the day they come back from vacation.
-  vacation-returns: {}
-  #  Oussama: Lundi
-  #  Sara: Jeudi
 
   # Moroccan public holidays. A holiday closes its column — nobody is remote on a day the office
   # is shut — and shortens the week, so the quota drops with it.

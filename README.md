@@ -18,11 +18,12 @@ fill in a shared spreadsheet.
 | Consecutive remote days | at most 2, so never 3 in a row | `remote.max-consecutive-days` |
 | Public holidays | the Moroccan calendar | `/admin/holidays`, seeded from `remote.public-holidays` |
 | Standing closures | none by default | `remote.holidays` |
-| Vacation returns | none by default | `remote.vacation-returns` |
 | Preferred remote days | any, per week, a wish | the schedule page |
 | On-site days | none, admins only | `/admin/week` |
 
-Everything above lives in `application.yml`. Nothing about the team is hardcoded in Java.
+The shape of the week lives in `application.yml`; what changes week to week — the holidays, the
+wishes, who is needed in the office — is edited in the browser. Nothing about the team is
+hardcoded in Java.
 
 **Capacity is tight on purpose.** 16 people × 3 days = **48 remote days** against
 5 × 10 = **50 slots**. Two slots of slack. Losing a day drops capacity to 40, which would make the
@@ -84,8 +85,10 @@ corrected and a deleted one stays deleted, however the configuration reads. Exte
 is therefore just a matter of appending to the list and restarting; changing a date already stored
 is not, and has to be done on the page.
 
-Anything else — a day the whole team takes off, or one person's return from vacation — is still
-`remote.holidays` (weekday names, every week) or `remote.vacation-returns` (one person, one day).
+A day the whole team takes off every week is `remote.holidays`, which is weekday names rather
+than dates. One person off on one day is not that: it is an on-site day, ticked for the week it
+falls in at `/admin/week`. Somebody back from leave on the Tuesday is needed in the office that
+Tuesday, not every Tuesday.
 
 ---
 
@@ -152,7 +155,7 @@ logging:
 ```
 
 ```bash
-./gradlew test    # 113 tests
+./gradlew test    # 112 tests
 ./gradlew build   # compile, test, package
 ```
 
@@ -339,7 +342,7 @@ days they are remote:
 - exactly as many bits set as the week's quota — 3 normally, fewer in a holiday week (true by
   construction)
 - no 3 bits in a row (the consecutive rule, one bit test: `mask & (mask>>1) & (mask>>2)`)
-- nothing on a holiday, a vacation-return day, or a day they are needed in the office
+- nothing on a holiday, or on a day they are needed in the office
 
 That leaves **7 valid patterns** per person, out of 32 possible subsets — and crucially that
 number does not grow with the team. Only daily capacity has to be tracked while backtracking.
@@ -451,7 +454,7 @@ Three things worth knowing about GitHub's scheduler:
 
 ## Tests
 
-`./gradlew test` runs 113 tests. The 43 solver, `WeekStarts` and `HolidayCalendar` tests are plain
+`./gradlew test` runs 112 tests. The 43 solver, `WeekStarts` and `HolidayCalendar` tests are plain
 unit tests with no Spring context. The rest extend `AbstractPostgresIntegrationTest`, which starts a throwaway
 **PostgreSQL 16 in Testcontainers** with Liquibase enabled and `ddl-auto=validate` — so every run
 checks the changelog and the entities still agree. Docker must be running.

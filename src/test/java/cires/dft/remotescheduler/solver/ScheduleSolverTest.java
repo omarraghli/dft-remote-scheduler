@@ -107,8 +107,8 @@ class ScheduleSolverTest {
     }
 
     @Test
-    @DisplayName("a person cannot be remote on their vacation return day")
-    void vacationReturnsAreRespected() {
+    @DisplayName("a person is never given a day they are blocked on")
+    void blockedDaysAreRespected() {
         SolverInput input = new SolverInput(TEAM, DAYS, new int[]{10, 10, 10, 10, 10}, 3, 2,
                 Set.of(), Map.of("Sara", Set.of(0), "Omar", Set.of(4)));
 
