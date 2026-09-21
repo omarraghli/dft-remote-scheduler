@@ -18,6 +18,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +42,7 @@ public class ScheduleService {
     private final WeekScheduleRepository repository;
     private final RemoteScheduleProperties properties;
     private final HolidayCalendar holidays;
+    private final VacationCalendar vacations;
     private final WeekPlanService weekPlans;
     private final Clock clock;
 
@@ -48,12 +50,14 @@ public class ScheduleService {
                            WeekScheduleRepository repository,
                            RemoteScheduleProperties properties,
                            HolidayCalendar holidays,
+                           VacationCalendar vacations,
                            WeekPlanService weekPlans,
                            Clock clock) {
         this.solver = solver;
         this.repository = repository;
         this.properties = properties;
         this.holidays = holidays;
+        this.vacations = vacations;
         this.weekPlans = weekPlans;
         this.clock = clock;
     }
@@ -236,6 +240,29 @@ public class ScheduleService {
                 : Optional.of(WeekStarts.of(week));
     }
 
+    /**
+     * Weeks already planned that have {@code person} remote on a day between these two dates —
+     * what leave entered after the fact collides with. They are not working those days at all,
+     * so the week has to be re-rolled.
+     */
+    @Transactional(readOnly = true)
+    public List<LocalDate> plannedWeeksAssigningPerson(String person, LocalDate from,
+                                                       LocalDate until) {
+        Set<LocalDate> weeks = new LinkedHashSet<>();
+
+        for (LocalDate date = from; !date.isAfter(until); date = date.plusDays(1)) {
+            LocalDate monday = WeekStarts.of(date);
+            int dayIndex = (int) ChronoUnit.DAYS.between(monday, date);
+
+            repository.findByWeekStart(monday)
+                    .filter(s -> s.peopleByDayIndex()
+                            .getOrDefault(dayIndex, List.of()).contains(person))
+                    .ifPresent(s -> weeks.add(monday));
+        }
+
+        return List.copyOf(weeks);
+    }
+
     /** The same over a whole grid: everybody the stored schedule now disagrees with, by name. */
     @Transactional(readOnly = true)
     public List<String> peopleContradictingPlannedWeek(LocalDate week,
@@ -265,19 +292,18 @@ public class ScheduleService {
      */
     SolverInput toSolverInput(LocalDate week) {
         List<String> days = properties.getDays();
-
-        Set<Integer> closedDays = new HashSet<>(holidays.dayIndexes(week));
-        for (String holiday : properties.getHolidays()) {
-            closedDays.add(requireDayIndex(holiday, "remote.holidays"));
-        }
-
+        Set<Integer> closedDays = closedDays(week);
         WeekPlan plan = weekPlans.forWeek(week);
 
         // A day somebody is held in the office on is closed for them exactly as a holiday is
-        // closed for everyone.
+        // closed for everyone. So are the days they are away and the day they come back.
         Map<String, Set<Integer>> forbiddenDays = new HashMap<>();
         for (Map.Entry<String, Set<Integer>> entry : plan.onSite().entrySet()) {
             forbiddenDays.put(entry.getKey(), new HashSet<>(entry.getValue()));
+        }
+        for (Map.Entry<String, Set<Integer>> entry : vacations.blockedDays(week).entrySet()) {
+            forbiddenDays.computeIfAbsent(entry.getKey(), k -> new HashSet<>())
+                    .addAll(entry.getValue());
         }
 
         int[] slotsPerDay = new int[properties.getSlotsPerDay().size()];
@@ -293,7 +319,35 @@ public class ScheduleService {
                 properties.getMaxConsecutiveDays(),
                 closedDays,
                 forbiddenDays,
-                plan.preferred());
+                plan.preferred(),
+                vacations.quotas(week, closedDays, holidays.remotesPerPerson(week)));
+    }
+
+    /** Days nobody works at all: the week's public holidays and the standing closures. */
+    private Set<Integer> closedDays(LocalDate week) {
+        Set<Integer> closed = new HashSet<>(holidays.dayIndexes(week));
+        for (String holiday : properties.getHolidays()) {
+            closed.add(requireDayIndex(holiday, "remote.holidays"));
+        }
+        return closed;
+    }
+
+    /**
+     * How many remote days the week owes each person — the week's quota for most of them, less
+     * for anybody whose leave leaves no room for it. What the chart measures a row against.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Integer> expectedRemoteDays(LocalDate week) {
+        LocalDate monday = WeekStarts.of(week);
+        int weekQuota = holidays.remotesPerPerson(monday);
+        Map<String, Integer> personal = vacations.quotas(monday, closedDays(monday), weekQuota);
+
+        Map<String, Integer> expected = new LinkedHashMap<>();
+        for (String person : properties.getPeople()) {
+            expected.put(person, personal.getOrDefault(person, weekQuota));
+        }
+
+        return expected;
     }
 
     private int requireDayIndex(String dayName, String propertyPath) {

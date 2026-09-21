@@ -124,6 +124,7 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
     void theBarIsTheSameEverywhere() throws Exception {
         assertBar("/", "href=\"/?week=" + QUIET_WEEK + "\" aria-current=\"page\"");
         assertBar("/admin/week", "href=\"/admin/week?week=" + QUIET_WEEK + "\" aria-current=\"page\"");
+        assertBar("/admin/vacations", "href=\"/admin/vacations\" aria-current=\"page\"");
         assertBar("/admin/holidays", "href=\"/admin/holidays\" aria-current=\"page\"");
         assertBar("/admin/users", "href=\"/admin/users\" aria-current=\"page\"");
     }
@@ -135,6 +136,7 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
                         .with(user("reader@cires.ma").roles("USER")))
                 .andExpect(content().string(containsString("data-theme-set")))
                 .andExpect(content().string(not(containsString("/admin/week"))))
+                .andExpect(content().string(not(containsString("/admin/vacations"))))
                 .andExpect(content().string(not(containsString("/admin/users"))));
     }
 
@@ -143,6 +145,7 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
     void theWeekStripFollowsTheWeek() throws Exception {
         assertStrip("/", true);
         assertStrip("/admin/week", true);
+        assertStrip("/admin/vacations", false);
         assertStrip("/admin/holidays", false);
         assertStrip("/admin/users", false);
     }

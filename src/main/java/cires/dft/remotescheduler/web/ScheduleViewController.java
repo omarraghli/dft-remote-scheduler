@@ -6,6 +6,7 @@ import cires.dft.remotescheduler.service.HolidayCalendar;
 import cires.dft.remotescheduler.service.PublicHoliday;
 import cires.dft.remotescheduler.service.ScheduleAlreadyExistsException;
 import cires.dft.remotescheduler.service.ScheduleService;
+import cires.dft.remotescheduler.service.VacationCalendar;
 import cires.dft.remotescheduler.security.AppUserPrincipal;
 import cires.dft.remotescheduler.service.WeekPlan;
 import cires.dft.remotescheduler.service.WeekPlanException;
@@ -24,6 +25,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.time.LocalDate;
 import java.time.temporal.WeekFields;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -36,15 +38,18 @@ public class ScheduleViewController {
     private final ScheduleService scheduleService;
     private final RemoteScheduleProperties properties;
     private final HolidayCalendar holidays;
+    private final VacationCalendar vacations;
     private final WeekPlanService weekPlans;
 
     public ScheduleViewController(ScheduleService scheduleService,
                                   RemoteScheduleProperties properties,
                                   HolidayCalendar holidays,
+                                  VacationCalendar vacations,
                                   WeekPlanService weekPlans) {
         this.scheduleService = scheduleService;
         this.properties = properties;
         this.holidays = holidays;
+        this.vacations = vacations;
         this.weekPlans = weekPlans;
     }
 
@@ -95,11 +100,19 @@ public class ScheduleViewController {
         model.addAttribute("holidayNames", holidays.namesByDayIndex(shownWeek));
         model.addAttribute("maxConsecutiveDays", properties.getMaxConsecutiveDays());
 
-        // What the week has been asked for and what it requires: the pins are drawn on
-        // everybody's row, the wishes only ever on your own.
+        // What the week has been asked for and what it requires: the pins and the leave are
+        // drawn on everybody's row, the wishes only ever on your own.
         WeekPlan plan = weekPlans.forWeek(shownWeek);
         String me = principal == null ? null : principal.getRosterName();
         model.addAttribute("onSite", plan.onSite());
+
+        Map<String, Set<Integer>> away = vacations.awayDays(shownWeek);
+        model.addAttribute("away", away);
+        model.addAttribute("returnDays", vacations.returnDays(shownWeek));
+        model.addAttribute("myAway", me == null ? Set.of() : away.getOrDefault(me, Set.of()));
+        // A row is measured against what the week owes that person, which is less for anybody
+        // whose leave leaves no room for the usual three.
+        model.addAttribute("expected", scheduleService.expectedRemoteDays(shownWeek));
         model.addAttribute("myPreferred", me == null ? Set.of() : plan.preferredFor(me));
         model.addAttribute("myOnSite", me == null ? Set.of() : plan.onSiteFor(me));
         model.addAttribute("canSetPreferences",

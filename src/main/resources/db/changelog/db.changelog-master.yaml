@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/changes/002-public-holiday.yaml
   - include:
       file: db/changelog/changes/003-week-plan.yaml
+  - include:
+      file: db/changelog/changes/004-vacation.yaml

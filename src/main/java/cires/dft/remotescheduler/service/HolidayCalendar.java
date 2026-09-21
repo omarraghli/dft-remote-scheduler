@@ -83,6 +83,12 @@ public class HolidayCalendar {
         return names;
     }
 
+
+    /** The holiday falling on exactly this date, or null — a weekend date included. */
+    public String nameOn(LocalDate date) {
+        return nameOf(date, dated.all());
+    }
+
     /**
      * Remote days each person gets in that week: the configured quota, lowered when holidays make
      * it impossible. Never raised — a quota rule above the configured one is ignored.

@@ -295,4 +295,32 @@ class ScheduleSolverTest {
                 .hasMessageContaining("Lundi")
                 .hasMessageContaining("blocked days");
     }
+
+    @Test
+    @DisplayName("somebody with a quota of their own gets exactly that, and the rest get theirs")
+    void aPersonalQuotaIsHonoured() {
+        SolverInput input = new SolverInput(TEAM, DAYS, new int[]{10, 10, 10, 10, 10}, 3, 2,
+                Set.of(), Map.of("Sara", Set.of(0, 1, 2, 3)), Map.of(), Map.of("Sara", 1));
+
+        SolverResult result = solver.solve(input, new Random(31));
+
+        assertThat(result.daysByPerson().get("Sara")).containsExactly(4);
+        assertThat(result.daysByPerson().entrySet())
+                .filteredOn(entry -> !entry.getKey().equals("Sara"))
+                .allSatisfy(entry -> assertThat(entry.getValue()).hasSize(3));
+    }
+
+    @Test
+    @DisplayName("somebody away all week takes no slot and holds nobody else up")
+    void aQuotaOfZeroIsAWeekOff() {
+        SolverInput input = new SolverInput(TEAM, DAYS, new int[]{10, 10, 10, 10, 10}, 3, 2,
+                Set.of(), Map.of("Adam", Set.of(0, 1, 2, 3, 4)), Map.of(), Map.of("Adam", 0));
+
+        SolverResult result = solver.solve(input, new Random(12));
+
+        assertThat(result.daysByPerson().get("Adam")).isEmpty();
+        assertThat(result.peopleByDay()).allSatisfy(
+                people -> assertThat(people).doesNotContain("Adam").hasSizeLessThanOrEqualTo(10));
+        assertThat(input.requiredPersonDays()).isEqualTo(45);
+    }
 }

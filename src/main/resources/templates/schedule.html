@@ -114,32 +114,46 @@
 
             <tbody>
             <tr th:each="row : ${schedule.roster}"
-                th:classappend="(${row.count != remotesPerPerson} ? 'is-off-quota ' : '')
+                th:with="owed=${expected.containsKey(row.name)}
+                               ? ${expected[row.name]} : ${remotesPerPerson}"
+                th:classappend="(${row.count != owed} ? 'is-off-quota ' : '')
                               + (${row.name == myRosterName} ? 'is-me' : '')">
 
                 <th class="c-name" scope="row">
                     <span th:text="${row.name}">Sara</span>
                     <span class="tag tag-me" th:if="${row.name == myRosterName}">you</span>
+                    <span class="tag tag-away" th:if="${away.containsKey(row.name)}"
+                          th:title="'Away ' + ${#lists.size(away[row.name])} + ' day(s) this week'">congé</span>
                 </th>
 
                 <td class="c-cell" th:each="cell : ${row.cells}"
-                    th:with="pinned=${onSite.containsKey(row.name)
+                    th:with="onLeave=${away.containsKey(row.name)
+                                       and away[row.name].contains(cell.dayIndex)},
+                             backToday=${returnDays.containsKey(row.name)
+                                        and returnDays[row.name] == cell.dayIndex},
+                             pinned=${onSite.containsKey(row.name)
                                       and onSite[row.name].contains(cell.dayIndex)}"
                     th:classappend="(${cell.dayIndex == todayIndex} ? 'is-today ' : '')
                                   + (${holidayNames.containsKey(cell.dayIndex)} ? 'is-holiday ' : '')
-                                  + (${pinned} ? 'is-onsite' : '')"
+                                  + (${onLeave} ? 'is-away ' : '')
+                                  + (${pinned or backToday} ? 'is-onsite' : '')"
                     th:attr="data-on=${cell.remote},data-jl=${cell.joinLeft},data-jr=${cell.joinRight}"
                     th:title="${row.name} + ' — ' + ${dayNames[cell.dayIndex]}
                             + (${holidayNames.containsKey(cell.dayIndex)}
                                 ? ' · ' + ${holidayNames[cell.dayIndex]}
-                                : (${cell.remote} ? ' · remote'
-                                    : (${pinned} ? ' · needed on site' : ' · office')))">
+                                : (${onLeave} ? ' · congé'
+                                    : (${cell.remote} ? ' · remote'
+                                        : (${backToday} ? ' · back from leave, on site'
+                                            : (${pinned} ? ' · needed on site' : ' · office')))))">
                     <span class="blk"></span>
                     <span class="sr-only"
-                          th:text="${cell.remote} ? 'remote' : (${pinned} ? 'on site' : 'office')">office</span>
+                          th:text="${onLeave} ? 'away'
+                                   : (${cell.remote} ? 'remote'
+                                      : (${pinned or backToday} ? 'on site' : 'office'))">office</span>
                 </td>
 
-                <td class="c-total num" th:text="${row.count}">3</td>
+                <td class="c-total num" th:text="${row.count}"
+                    th:title="'owed ' + ${owed} + ' this week'">3</td>
             </tr>
             </tbody>
         </table>
@@ -148,6 +162,7 @@
             <span class="key"><i class="key-on"></i> remote</span>
             <span class="key"><i class="key-off"></i> office</span>
             <span class="key"><i class="key-site"></i> needed on site</span>
+            <span class="key"><i class="key-away"></i> congé</span>
             <span class="key-note">adjacent days join into one bar — a bar spanning
                 <span th:text="${maxConsecutiveDays + 1}">3</span> days would break the rule</span>
         </p>
@@ -175,8 +190,10 @@
             <tr th:each="person : ${people}">
                 <th class="c-name" th:text="${person}">Sara</th>
                 <td class="c-cell" th:each="name, day : ${dayNames}"
-                    th:classappend="${onSite.containsKey(person)
-                                     and onSite[person].contains(day.index)} ? 'is-onsite' : ''">
+                    th:classappend="(${away.containsKey(person)
+                                      and away[person].contains(day.index)} ? 'is-away ' : '')
+                                  + (${onSite.containsKey(person)
+                                      and onSite[person].contains(day.index)} ? 'is-onsite' : '')">
                     <span class="blk"></span>
                 </td>
                 <td class="c-total num">–</td>
@@ -203,12 +220,14 @@
 
             <label class="pick-day" th:each="name, day : ${dayNames}"
                    th:classappend="(${holidayNames.containsKey(day.index)} ? 'is-holiday ' : '')
+                                 + (${myAway.contains(day.index)} ? 'is-away ' : '')
                                  + (${myOnSite.contains(day.index)} ? 'is-onsite' : '')">
                 <input type="checkbox" name="preferred" th:value="${day.index}"
                        th:checked="${myPreferred.contains(day.index)}">
                 <span th:text="${name}">Lundi</span>
                 <small th:if="${holidayNames.containsKey(day.index)}"
                        th:text="${holidayNames[day.index]}">Marche Verte</small>
+                <small th:if="${myAway.contains(day.index)}">congé</small>
                 <small th:if="${myOnSite.contains(day.index)}">needed on site</small>
             </label>
 

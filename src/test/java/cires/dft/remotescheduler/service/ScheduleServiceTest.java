@@ -28,6 +28,9 @@ class ScheduleServiceTest extends AbstractPostgresIntegrationTest {
     @Autowired
     private WeekPlanService weekPlanService;
 
+    @Autowired
+    private VacationService vacationService;
+
     @Test
     @DisplayName("a generated week is persisted with every assignment")
     void generatesAndPersists() {
@@ -216,5 +219,99 @@ class ScheduleServiceTest extends AbstractPostgresIntegrationTest {
                 LocalDate.of(2029, 4, 2), "Nobody", Set.of(0), Set.of(), "test"))
                 .isInstanceOf(WeekPlanException.class)
                 .hasMessageContaining("roster");
+    }
+
+    @Test
+    @DisplayName("somebody away until the Wednesday is in the office on the Thursday and has one remote day")
+    void leaveShortensTheirWeek() {
+        LocalDate week = LocalDate.of(2029, 6, 4);
+        var leave = vacationService.add("Sara", LocalDate.of(2029, 6, 4), LocalDate.of(2029, 6, 6));
+
+        try {
+            var input = scheduleService.toSolverInput(week);
+
+            // Away Lundi to Mercredi, back on the Jeudi: four days they cannot be remote on.
+            assertThat(input.forbiddenDays()).containsEntry("Sara", Set.of(0, 1, 2, 3));
+            assertThat(input.quotaFor("Sara")).isEqualTo(1);
+            assertThat(input.quotaFor("Omar")).isEqualTo(3);
+            assertThat(input.requiredPersonDays()).isEqualTo(46);
+
+            assertThat(scheduleService.expectedRemoteDays(week))
+                    .containsEntry("Sara", 1)
+                    .containsEntry("Omar", 3);
+
+            WeekSchedule schedule = scheduleService.generate(week, true, "test");
+
+            assertThat(schedule.remoteDaysPerPerson()).containsEntry("Sara", 1);
+            assertThat(schedule.peopleByDayIndex().get(4)).contains("Sara");
+            for (int day = 0; day <= 3; day++) {
+                assertThat(schedule.peopleByDayIndex().getOrDefault(day, List.of()))
+                        .doesNotContain("Sara");
+            }
+
+        } finally {
+            vacationService.delete(leave.getId());
+        }
+    }
+
+    @Test
+    @DisplayName("somebody away all week is left out of it, and the week is planned around them")
+    void awayAllWeekMeansNoRemoteDays() {
+        LocalDate week = LocalDate.of(2029, 6, 11);
+        var leave = vacationService.add("Adam", LocalDate.of(2029, 6, 11),
+                LocalDate.of(2029, 6, 15));
+
+        try {
+            assertThat(scheduleService.expectedRemoteDays(week)).containsEntry("Adam", 0);
+
+            WeekSchedule schedule = scheduleService.generate(week, true, "test");
+
+            assertThat(schedule.remoteDaysPerPerson()).doesNotContainKey("Adam");
+            assertThat(schedule.getAssignments()).hasSize(45);
+
+        } finally {
+            vacationService.delete(leave.getId());
+        }
+    }
+
+    @Test
+    @DisplayName("leave ending on a Friday costs the Monday after it, not the week it fell in")
+    void theDayBackCanLandInTheNextWeek() {
+        var leave = vacationService.add("Nader", LocalDate.of(2029, 6, 18),
+                LocalDate.of(2029, 6, 22));
+
+        try {
+            var input = scheduleService.toSolverInput(LocalDate.of(2029, 6, 25));
+
+            assertThat(input.forbiddenDays()).containsEntry("Nader", Set.of(0));
+            assertThat(input.quotaFor("Nader")).isEqualTo(3);
+
+            WeekSchedule schedule = scheduleService.generate(LocalDate.of(2029, 6, 25), true, "test");
+            assertThat(schedule.peopleByDayIndex().get(0)).doesNotContain("Nader");
+            assertThat(schedule.remoteDaysPerPerson()).containsEntry("Nader", 3);
+
+        } finally {
+            vacationService.delete(leave.getId());
+        }
+    }
+
+    @Test
+    @DisplayName("leave entered after the week was planned says which week to re-roll")
+    void leaveOnAPlannedWeekIsReported() {
+        LocalDate week = LocalDate.of(2029, 7, 2);
+        scheduleService.generate(week, true, "test");
+
+        String remoteOnMonday = scheduleService.findByWeek(week).orElseThrow()
+                .peopleByDayIndex().get(0).getFirst();
+
+        var leave = vacationService.add(remoteOnMonday, week, week);
+
+        try {
+            assertThat(scheduleService.plannedWeeksAssigningPerson(remoteOnMonday, week, week))
+                    .containsExactly(week);
+
+        } finally {
+            vacationService.delete(leave.getId());
+        }
     }
 }

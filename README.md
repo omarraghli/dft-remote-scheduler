@@ -14,12 +14,13 @@ fill in a shared spreadsheet.
 | People | 16 | `remote.people` |
 | Working days | Lundi – Vendredi | `remote.days` |
 | Remote slots per day | 10 | `remote.slots-per-day` |
-| Remote days per person | exactly 3 | `remote.remotes-per-person` |
+| Remote days per person | exactly 3, fewer in a short week | `remote.remotes-per-person` |
 | Consecutive remote days | at most 2, so never 3 in a row | `remote.max-consecutive-days` |
 | Public holidays | the Moroccan calendar | `/admin/holidays`, seeded from `remote.public-holidays` |
 | Standing closures | none by default | `remote.holidays` |
 | Preferred remote days | any, per week, a wish | the schedule page |
 | On-site days | none, admins only | `/admin/week` |
+| Leave | none by default | `/admin/vacations` |
 
 The shape of the week lives in `application.yml`; what changes week to week — the holidays, the
 wishes, who is needed in the office — is edited in the browser. Nothing about the team is
@@ -134,6 +135,33 @@ effect. Until somebody re-rolls, nothing either page records changes the chart.
 
 ---
 
+## Congés
+
+Somebody on leave is not working from home, they are not working. So their days off come out of
+the week rather than being handed to them as remote days, and **`/admin/vacations`** is where an
+admin records who is away and between which two dates. A single day off, a fortnight and anything
+in between are the same entry — a first day and a last day. Weekends and fériés inside a stretch
+look after themselves, and the same person cannot be entered as away twice over the same days.
+
+Three things follow from one stretch of leave, and they are the same rule seen from three sides:
+
+- **The days away are not theirs.** The chart hatches them and tags the row *congé*.
+- **The first day back is spent in the office.** Not a rule anybody has to remember: it is worked
+  out from the leave, walking forward to the first day the office is actually open. Leave ending
+  on a Friday puts them in on the Monday, and on the Tuesday if that Monday is a férié.
+- **What they are owed shrinks to what is left.** Away Lundi to Mercredi leaves Jeudi and
+  Vendredi; Jeudi is the day back, so only Vendredi is free and one remote day is all the week
+  can owe them. The quota is capped at what fits rather than the week failing for want of an
+  answer — and only ever capped, so a day off in the middle of a week costs nothing at all.
+
+The Σ column and the red off-quota marking follow that figure rather than the configured three,
+so a row shortened by leave is not flagged as having missed a target it never had.
+
+**If the week was already planned**, the page says so and links to it, exactly as a late férié
+does. Nothing is re-rolled for you.
+
+---
+
 ## Running it
 
 ```bash
@@ -155,7 +183,7 @@ logging:
 ```
 
 ```bash
-./gradlew test    # 112 tests
+./gradlew test    # 134 tests
 ./gradlew build   # compile, test, package
 ```
 
@@ -190,10 +218,16 @@ To change the schema, add a new change file and include it — never edit an app
 
 Everything is behind a sign-in. There are two roles:
 
-| | Read the schedule | Export .xlsx | Ask for days | Generate / re-roll | Require days on site | Manage accounts | Manage holidays |
-|---|---|---|---|---|---|---|---|
-| **User** | yes | yes | for themselves | no | no | no | no |
-| **Admin** | yes | yes | for anyone | yes | yes | yes | yes |
+| | **User** | **Admin** |
+|---|---|---|
+| Read the schedule | yes | yes |
+| Export .xlsx | yes | yes |
+| Ask for remote days | for themselves | for anyone |
+| Generate / re-roll | no | yes |
+| Require days on site | no | yes |
+| Record leave | no | yes |
+| Manage holidays | no | yes |
+| Manage accounts | no | yes |
 
 A read-only user simply doesn't see the buttons they can't use, and the server refuses the
 requests anyway — the page hiding them is a courtesy, not the control.
@@ -252,7 +286,8 @@ hatched rather than merely empty, and the strip above the chart spells out the w
 the remote days each person gets in it.
 
 A cell an admin has marked **on site** carries a dot: that person is needed in the office that
-day, so the schedule never gave them one there. Under the chart, if your account is linked to a
+day, so the schedule never gave them one there. A day somebody is **away** is hatched on their
+row alone and their name carries a *congé* tag. Under the chart, if your account is linked to a
 roster name, a row of checkboxes lets you say which days you would rather be remote the next time
 that week is rolled.
 
@@ -339,10 +374,10 @@ chosen, so the search grinds through enormous numbers of branches that were doom
 So the search is transposed. Each person is assigned one **week pattern** — a 5-bit mask of the
 days they are remote:
 
-- exactly as many bits set as the week's quota — 3 normally, fewer in a holiday week (true by
-  construction)
+- exactly as many bits set as that person's quota — 3 normally, fewer in a holiday week and
+  fewer again for somebody whose leave leaves no room for it (true by construction)
 - no 3 bits in a row (the consecutive rule, one bit test: `mask & (mask>>1) & (mask>>2)`)
-- nothing on a holiday, or on a day they are needed in the office
+- nothing on a holiday, on a day they are away, or on a day they are needed in the office
 
 That leaves **7 valid patterns** per person, out of 32 possible subsets — and crucially that
 number does not grow with the team. Only daily capacity has to be tracked while backtracking.
@@ -374,10 +409,10 @@ milliseconds.
 ```
 solver/      ScheduleSolver, WeekPatterns — pure algorithm, no Spring or JPA
 domain/      WeekSchedule, RemoteAssignment, AppUser, Holiday, RemotePreference,
-             OnSiteDay — JPA entities
+             OnSiteDay, Vacation — JPA entities
 repository/  WeekScheduleRepository
 service/     ScheduleService (solve + persist), WeekPlanService, HolidayCalendar,
-             HolidayService, HolidaySeed,
+             HolidayService, HolidaySeed, VacationCalendar, VacationService,
              ScheduleExcelExporter, WeekStarts
 scheduler/   WeeklyScheduleJob — the Thursday cron
 web/         REST controller, page controller, DTO, problem-detail handler
@@ -386,7 +421,7 @@ config/      RemoteScheduleProperties, PublicHolidayProperties — the YAML bind
 resources/db/changelog/   Liquibase master + change files
 templates/schedule.html   the page (Thymeleaf)
 templates/fragments/      the head, bar and footer every page shares
-templates/admin/          accounts, holidays and the week grid
+templates/admin/          accounts, holidays, leave and the week grid
 ```
 
 A schedule is always keyed by the **Monday its week starts on** (`WeekStarts`), so any date in a
@@ -454,8 +489,8 @@ Three things worth knowing about GitHub's scheduler:
 
 ## Tests
 
-`./gradlew test` runs 112 tests. The 43 solver, `WeekStarts` and `HolidayCalendar` tests are plain
-unit tests with no Spring context. The rest extend `AbstractPostgresIntegrationTest`, which starts a throwaway
+`./gradlew test` runs 134 tests. The 53 solver, `WeekStarts`, `HolidayCalendar` and
+`VacationCalendar` tests are plain unit tests with no Spring context. The rest extend `AbstractPostgresIntegrationTest`, which starts a throwaway
 **PostgreSQL 16 in Testcontainers** with Liquibase enabled and `ddl-auto=validate` — so every run
 checks the changelog and the entities still agree. Docker must be running.
 

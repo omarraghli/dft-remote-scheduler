@@ -58,6 +58,11 @@
                     ? @{/admin/week(week=${shownWeek})} : @{/admin/week}">Semaine</a>
 
         <a class="nav-link" sec:authorize="hasRole('ADMIN')"
+           th:classappend="${active == 'vacations'} ? 'is-on' : ''"
+           th:attr="aria-current=${active == 'vacations'} ? 'page' : null"
+           th:href="@{/admin/vacations}">Congés</a>
+
+        <a class="nav-link" sec:authorize="hasRole('ADMIN')"
            th:classappend="${active == 'holidays'} ? 'is-on' : ''"
            th:attr="aria-current=${active == 'holidays'} ? 'page' : null"
            th:href="@{/admin/holidays}">Fériés</a>

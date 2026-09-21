@@ -53,6 +53,28 @@ public final class WeekPatterns {
     }
 
     /**
+     * The most remote days somebody could possibly get out of the days left to them — the
+     * largest number of bits that fit outside {@code blockedMask} without a run longer than
+     * {@code maxConsecutiveDays}.
+     *
+     * <p>What it is for: somebody back from leave on the Thursday has Thursday held for the
+     * office and Friday left, so asking them for three remote days has no answer. The quota is
+     * capped at this instead of the week failing.
+     */
+    public static int maxRemoteDays(int dayCount, int maxConsecutiveDays, int blockedMask) {
+        int best = 0;
+
+        for (int mask = 0; mask < (1 << dayCount); mask++) {
+            if ((mask & blockedMask) != 0) continue;
+            if (hasRunLongerThan(mask, maxConsecutiveDays)) continue;
+
+            best = Math.max(best, Integer.bitCount(mask));
+        }
+
+        return best;
+    }
+
+    /**
      * True when {@code mask} contains {@code maxRun + 1} consecutive set bits.
      *
      * <p>Shifting the mask right and AND-ing it with itself once per extra day leaves a set bit

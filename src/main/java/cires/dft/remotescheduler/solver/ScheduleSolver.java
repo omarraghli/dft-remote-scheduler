@@ -80,7 +80,7 @@ public class ScheduleSolver {
 
             List<Integer> patterns = WeekPatterns.forPerson(
                     input.dayCount(),
-                    input.remotesPerPerson(),
+                    input.quotaFor(person),
                     input.maxConsecutiveDays(),
                     input.holidays(),
                     input.forbiddenDays().get(person));
@@ -89,12 +89,20 @@ public class ScheduleSolver {
                 throw new NoFeasibleScheduleException(
                         "No valid week pattern exists for " + person
                                 + " — their blocked days leave too few days for "
-                                + input.remotesPerPerson() + " remote days");
+                                + input.quotaFor(person) + " remote days");
             }
 
             Collections.shuffle(patterns, random);
             patternsPerPerson.add(patterns);
             preferredMasks[p] = input.preferredMask(person);
+        }
+
+        // What the people from index i onwards still need between them, so the search can give
+        // up the moment the days left cannot cover it. A multiplication would do when everybody
+        // has the same quota; somebody on leave has their own.
+        int[] stillNeeded = new int[people.size() + 1];
+        for (int p = people.size() - 1; p >= 0; p--) {
+            stillNeeded[p] = stillNeeded[p + 1] + input.quotaFor(people.get(p));
         }
 
         int[] assigned = new int[people.size()];
@@ -104,15 +112,16 @@ public class ScheduleSolver {
         // both. So the greedy pass gets a budget, and past it the week is planned with the
         // wishes demoted to a tie-break, then without them at all. Each fallback grants less of
         // what people asked for and none of them bends a rule; a week always comes out.
-        if (search(assigned, patternsPerPerson, preferredMasks, input,
+        if (search(assigned, patternsPerPerson, preferredMasks, stillNeeded, input,
                 new int[]{WISH_NODE_BUDGET}, true)) {
             return toResult(people, assigned, input);
         }
-        if (search(assigned, patternsPerPerson, preferredMasks, input,
+        if (search(assigned, patternsPerPerson, preferredMasks, stillNeeded, input,
                 new int[]{WISH_NODE_BUDGET}, false)) {
             return toResult(people, assigned, input);
         }
-        if (!search(assigned, patternsPerPerson, new int[people.size()], input, null, false)) {
+        if (!search(assigned, patternsPerPerson, new int[people.size()], stillNeeded, input,
+                null, false)) {
             throw new NoFeasibleScheduleException(
                     "No schedule satisfies the configured constraints");
         }
@@ -130,10 +139,12 @@ public class ScheduleSolver {
                     "slotsPerDay has " + input.slotsPerDay().length + " entries but there are "
                             + input.dayCount() + " days — they must match");
         }
-        if (input.remotesPerPerson() > input.dayCount()) {
-            throw new NoFeasibleScheduleException(
-                    "Cannot give each person " + input.remotesPerPerson()
-                            + " remote days in a " + input.dayCount() + " day week");
+        for (String person : input.people()) {
+            if (input.quotaFor(person) > input.dayCount()) {
+                throw new NoFeasibleScheduleException(
+                        "Cannot give " + person + " " + input.quotaFor(person)
+                                + " remote days in a " + input.dayCount() + " day week");
+            }
         }
 
         int required = input.requiredPersonDays();
@@ -141,9 +152,9 @@ public class ScheduleSolver {
 
         if (required > available) {
             throw new NoFeasibleScheduleException(
-                    "Not enough capacity: " + input.people().size() + " people x "
-                            + input.remotesPerPerson() + " days = " + required
-                            + " remote days needed, but only " + available
+                    "Not enough capacity: " + required
+                            + " remote days needed across " + input.people().size()
+                            + " people, but only " + available
                             + " slots are available" + (input.holidays().isEmpty()
                             ? "" : " once holidays are removed"));
         }
@@ -196,12 +207,13 @@ public class ScheduleSolver {
     private boolean search(int[] assigned,
                            List<List<Integer>> patternsPerPerson,
                            int[] preferredMasks,
+                           int[] stillNeeded,
                            SolverInput input,
                            int[] budget,
                            boolean wishesLead) {
 
         return backtrack(0, new int[input.dayCount()], assigned, patternsPerPerson,
-                preferredMasks, input, budget, wishesLead);
+                preferredMasks, stillNeeded, input, budget, wishesLead);
     }
 
     /**
@@ -215,6 +227,7 @@ public class ScheduleSolver {
                               int[] assigned,
                               List<List<Integer>> patternsPerPerson,
                               int[] preferredMasks,
+                              int[] stillNeeded,
                               SolverInput input,
                               int[] budget,
                               boolean wishesLead) {
@@ -222,8 +235,7 @@ public class ScheduleSolver {
         if (personIndex == assigned.length) return true;
         if (budget != null && --budget[0] < 0) return false;
 
-        int peopleLeft = assigned.length - personIndex;
-        if (freeCapacity(used, input) < peopleLeft * input.remotesPerPerson()) return false;
+        if (freeCapacity(used, input) < stillNeeded[personIndex]) return false;
 
         // Look ahead: once a day is full it is full for everybody, so anyone still waiting whose
         // every pattern touches a full day is already stuck and this branch is dead. Without
@@ -256,7 +268,7 @@ public class ScheduleSolver {
             assigned[personIndex] = mask;
 
             if (backtrack(personIndex + 1, used, assigned, patternsPerPerson, preferredMasks,
-                    input, budget, wishesLead)) {
+                    stillNeeded, input, budget, wishesLead)) {
                 return true;
             }
 

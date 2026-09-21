@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/chrome :: head('Congés')}"></head>
+<body>
+
+<header th:replace="~{fragments/chrome :: bar('vacations')}"></header>
+
+<main class="wrap">
+
+    <div class="notices">
+        <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+        <!-- The case this page exists for: the week was planned before the leave was known. -->
+        <p class="note note-warn" th:if="${staleWeek}">
+            <b th:text="${stalePerson}">Sara</b> is already planned remote on a day they are
+            away —
+            <a th:href="@{/(week=${staleWeek})}"
+               th:text="'week of ' + ${staleWeek}">week of 2026-07-13</a>.
+            Re-roll it, or the chart will show them working from home while they are off.
+        </p>
+    </div>
+
+    <section class="masthead">
+        <div class="masthead-left">
+            <span class="eyebrow">Congés</span>
+            <h1 class="display" th:text="${#lists.size(vacations)}">3</h1>
+        </div>
+
+        <div class="masthead-right">
+            <p class="provenance" th:if="${away > 0}">
+                <b th:text="${away}">1</b> away today
+            </p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title">Record leave</h2>
+
+        <form method="post" th:action="@{/admin/vacations}" class="row-form">
+            <label class="field">
+                <span>Person</span>
+                <select name="person" required>
+                    <option th:each="p : ${people}" th:value="${p}" th:text="${p}">Sara</option>
+                </select>
+            </label>
+
+            <label class="field">
+                <span>First day away</span>
+                <input type="date" name="startDate" required th:value="${today}">
+            </label>
+
+            <label class="field">
+                <span>Last day away</span>
+                <input type="date" name="endDate" required th:value="${today}">
+                <small>the same date for a single day off</small>
+            </label>
+
+            <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+
+        <p class="panel-note">Days away are not remote days — somebody off is not working from
+            home. Those days come out of their week, the first day they are back is one they
+            spend in the office, and the remote days they are owed drop to whatever the days
+            left can hold. Weekends and fériés inside a stretch take care of themselves.</p>
+    </section>
+
+    <table class="listing">
+        <thead>
+        <tr>
+            <th scope="col">Person</th>
+            <th scope="col">First day</th>
+            <th scope="col">Last day</th>
+            <th scope="col">Away</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="v : ${vacations}" th:classappend="${v.over} ? 'is-inactive' : ''">
+            <td>
+                <select name="person" required th:attr="form='v-' + ${v.id}">
+                    <option th:each="p : ${people}" th:value="${p}" th:text="${p}"
+                            th:selected="${p == v.person}">Sara</option>
+                </select>
+            </td>
+
+            <td>
+                <input type="date" name="startDate" th:value="${v.startDate}" required
+                       th:attr="form='v-' + ${v.id}">
+            </td>
+
+            <td>
+                <input type="date" name="endDate" th:value="${v.endDate}" required
+                       th:attr="form='v-' + ${v.id}">
+            </td>
+
+            <td class="h-when">
+                <span th:text="${v.when}">lundi 13 juillet – vendredi 24 juillet 2026</span>
+                <span class="pill" th:text="${v.days} + (${v.days} > 1 ? ' days' : ' day')">12 days</span>
+                <span class="pill pill-past" th:if="${v.over}">over</span>
+                <a class="pill pill-warn" th:if="${v.plannedWeek}"
+                   th:href="@{/(week=${v.plannedWeek})}">week already planned</a>
+            </td>
+
+            <td class="u-actions">
+                <form method="post" th:action="@{'/admin/vacations/' + ${v.id}}"
+                      th:id="'v-' + ${v.id}" class="inline">
+                    <button type="submit" class="btn btn-quiet btn-sm">Save</button>
+                </form>
+
+                <form method="post" th:action="@{'/admin/vacations/' + ${v.id} + '/delete'}"
+                      class="inline"
+                      onsubmit="return confirm('Remove this leave? Weeks already planned keep their schedule.');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+
+        <tr th:if="${#lists.isEmpty(vacations)}">
+            <td colspan="5" class="h-empty">Nobody is on leave. Add the next one as soon as it
+                is approved, so the week it falls in is planned around it.</td>
+        </tr>
+        </tbody>
+    </table>
+
+</main>
+
+<footer th:replace="~{fragments/chrome :: foot(false)}"></footer>
+
+<script th:replace="~{fragments/chrome :: theme-script}"></script>
+
+</body>
+</html>

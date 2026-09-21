@@ -58,4 +58,23 @@ class WeekPatternsTest {
         assertThat(relaxed).isGreaterThan(strict);
         assertThat(relaxed).isEqualTo(10);
     }
+
+    @Test
+    @DisplayName("the most remote days a week can hold is what is left once the runs are counted")
+    void maxRemoteDaysCountsWhatFits() {
+        // Nothing blocked: four, taking Lundi, Mardi, Jeudi and Vendredi around a day in the
+        // office. More than the quota anybody is given, which is why this only ever caps it.
+        assertThat(WeekPatterns.maxRemoteDays(5, 2, 0b00000)).isEqualTo(4);
+
+        // Away Lundi to Mercredi and back on the Jeudi: only Vendredi is left.
+        assertThat(WeekPatterns.maxRemoteDays(5, 2, 0b01111)).isEqualTo(1);
+
+        // Away Lundi, back Mardi: Mercredi to Vendredi is three in a row, so two of them.
+        assertThat(WeekPatterns.maxRemoteDays(5, 2, 0b00011)).isEqualTo(2);
+
+        // A day off in the middle costs nothing at all.
+        assertThat(WeekPatterns.maxRemoteDays(5, 2, 0b01100)).isEqualTo(3);
+
+        assertThat(WeekPatterns.maxRemoteDays(5, 2, 0b11111)).isZero();
+    }
 }

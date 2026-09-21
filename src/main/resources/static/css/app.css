@@ -635,6 +635,25 @@ body {
     background: var(--ink-55);
 }
 
+/* A day somebody is away for. Hatched like a holiday, because for that person it is one —
+   but dimmer, since the office is open and it is only their row that is out. */
+.c-cell.is-away {
+    background: repeating-linear-gradient(135deg,
+            transparent, transparent 5px, var(--rule-soft) 5px, var(--rule-soft) 10px);
+    opacity: .6;
+}
+
+.c-cell.is-away .blk { box-shadow: none; background: transparent; }
+.c-cell.is-away .blk::after { display: none; }
+
+.tag-away { background: var(--rule-soft); color: var(--ink-55); }
+
+.key .key-away {
+    background: repeating-linear-gradient(135deg,
+            transparent, transparent 4px, var(--ink-35) 4px, var(--ink-35) 8px);
+    box-shadow: inset 0 0 0 1px var(--rule);
+}
+
 /* A holiday closes the day for everybody, so a pin on it says nothing worth drawing. */
 .c-cell.is-holiday.is-onsite .blk { background: transparent; box-shadow: none; }
 .c-cell.is-holiday.is-onsite .blk::after { display: none; }
@@ -1074,7 +1093,7 @@ a.pill-warn:hover { background: var(--accent-bg); }
 }
 
 .pick-day small { color: var(--ink-55); font-size: 11px; }
-.pick-day.is-holiday { opacity: .55; }
+.pick-day.is-holiday, .pick-day.is-away { opacity: .55; }
 .pick-day.is-onsite span { color: var(--ink-55); }
 
 /* Scoped through .key so it outweighs `.key i`, which sets display on every swatch. */

@@ -16,6 +16,9 @@ import java.util.Set;
  * @param holidays           day indices with no remote work at all
  * @param forbiddenDays      per person, day indices they cannot be remote on
  * @param preferredDays      per person, day indices they asked for — a wish, never a constraint
+ * @param personalQuotas     per person, a quota of their own, for anybody the ordinary one
+ *                           cannot apply to; everybody absent from here gets
+ *                           {@code remotesPerPerson}
  */
 public record SolverInput(
         List<String> people,
@@ -25,14 +28,16 @@ public record SolverInput(
         int maxConsecutiveDays,
         Set<Integer> holidays,
         Map<String, Set<Integer>> forbiddenDays,
-        Map<String, Set<Integer>> preferredDays
+        Map<String, Set<Integer>> preferredDays,
+        Map<String, Integer> personalQuotas
 ) {
 
     public SolverInput {
         if (preferredDays == null) preferredDays = Map.of();
+        if (personalQuotas == null) personalQuotas = Map.of();
     }
 
-    /** A week nobody has expressed a wish for. */
+    /** A week nobody has expressed a wish for, and where the quota is the same for everybody. */
     public SolverInput(List<String> people,
                        List<String> dayNames,
                        int[] slotsPerDay,
@@ -42,16 +47,39 @@ public record SolverInput(
                        Map<String, Set<Integer>> forbiddenDays) {
 
         this(people, dayNames, slotsPerDay, remotesPerPerson, maxConsecutiveDays,
-                holidays, forbiddenDays, Map.of());
+                holidays, forbiddenDays, Map.of(), Map.of());
+    }
+
+    /** A week with wishes but no quota of anybody's own. */
+    public SolverInput(List<String> people,
+                       List<String> dayNames,
+                       int[] slotsPerDay,
+                       int remotesPerPerson,
+                       int maxConsecutiveDays,
+                       Set<Integer> holidays,
+                       Map<String, Set<Integer>> forbiddenDays,
+                       Map<String, Set<Integer>> preferredDays) {
+
+        this(people, dayNames, slotsPerDay, remotesPerPerson, maxConsecutiveDays,
+                holidays, forbiddenDays, preferredDays, Map.of());
+    }
+
+    /** How many remote days this person must get, exactly. */
+    public int quotaFor(String person) {
+        return personalQuotas.getOrDefault(person, remotesPerPerson);
     }
 
     public int dayCount() {
         return dayNames.size();
     }
 
-    /** Remote days that must be handed out: one per person per required remote day. */
+    /** Remote days that must be handed out, which is not people × quota once somebody is away. */
     public int requiredPersonDays() {
-        return people.size() * remotesPerPerson;
+        int required = 0;
+        for (String person : people) {
+            required += quotaFor(person);
+        }
+        return required;
     }
 
     /** Remote days that can be handed out, holidays contributing nothing. */
