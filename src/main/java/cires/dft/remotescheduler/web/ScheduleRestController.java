@@ -2,6 +2,7 @@ package cires.dft.remotescheduler.web;
 
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.WeekSchedule;
+import cires.dft.remotescheduler.service.HolidayCalendar;
 import cires.dft.remotescheduler.service.ScheduleExcelExporter;
 import cires.dft.remotescheduler.service.ScheduleNotFoundException;
 import cires.dft.remotescheduler.service.ScheduleService;
@@ -36,20 +37,23 @@ public class ScheduleRestController {
     private final ScheduleService scheduleService;
     private final ScheduleExcelExporter exporter;
     private final RemoteScheduleProperties properties;
+    private final HolidayCalendar holidays;
 
     public ScheduleRestController(ScheduleService scheduleService,
                                   ScheduleExcelExporter exporter,
-                                  RemoteScheduleProperties properties) {
+                                  RemoteScheduleProperties properties,
+                                  HolidayCalendar holidays) {
         this.scheduleService = scheduleService;
         this.exporter = exporter;
         this.properties = properties;
+        this.holidays = holidays;
     }
 
     /** Every stored schedule, newest week first. */
     @GetMapping
     public List<ScheduleResponse> list() {
         return scheduleService.findAll().stream()
-                .map(schedule -> ScheduleResponse.from(schedule, properties))
+                .map(schedule -> ScheduleResponse.from(schedule, properties, holidays))
                 .toList();
     }
 
@@ -60,7 +64,7 @@ public class ScheduleRestController {
                 .orElseThrow(() -> new ScheduleNotFoundException(
                         WeekStarts.of(scheduleService.today())));
 
-        return ScheduleResponse.from(schedule, properties);
+        return ScheduleResponse.from(schedule, properties, holidays);
     }
 
     /** The schedule for the week containing the given date. */
@@ -71,7 +75,7 @@ public class ScheduleRestController {
         WeekSchedule schedule = scheduleService.findByWeek(date)
                 .orElseThrow(() -> new ScheduleNotFoundException(WeekStarts.of(date)));
 
-        return ScheduleResponse.from(schedule, properties);
+        return ScheduleResponse.from(schedule, properties, holidays);
     }
 
     /**
@@ -90,7 +94,7 @@ public class ScheduleRestController {
         LocalDate target = week != null ? week : WeekStarts.next(scheduleService.today());
         WeekSchedule schedule = scheduleService.generate(target, replace, trigger());
 
-        return ScheduleResponse.from(schedule, properties);
+        return ScheduleResponse.from(schedule, properties, holidays);
     }
 
     /**

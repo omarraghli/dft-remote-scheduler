@@ -15,6 +15,7 @@ import java.util.Set;
  * @param maxConsecutiveDays the longest run of remote days a person may have
  * @param holidays           day indices with no remote work at all
  * @param forbiddenDays      per person, day indices they cannot be remote on
+ * @param preferredDays      per person, day indices they asked for — a wish, never a constraint
  */
 public record SolverInput(
         List<String> people,
@@ -23,8 +24,26 @@ public record SolverInput(
         int remotesPerPerson,
         int maxConsecutiveDays,
         Set<Integer> holidays,
-        Map<String, Set<Integer>> forbiddenDays
+        Map<String, Set<Integer>> forbiddenDays,
+        Map<String, Set<Integer>> preferredDays
 ) {
+
+    public SolverInput {
+        if (preferredDays == null) preferredDays = Map.of();
+    }
+
+    /** A week nobody has expressed a wish for. */
+    public SolverInput(List<String> people,
+                       List<String> dayNames,
+                       int[] slotsPerDay,
+                       int remotesPerPerson,
+                       int maxConsecutiveDays,
+                       Set<Integer> holidays,
+                       Map<String, Set<Integer>> forbiddenDays) {
+
+        this(people, dayNames, slotsPerDay, remotesPerPerson, maxConsecutiveDays,
+                holidays, forbiddenDays, Map.of());
+    }
 
     public int dayCount() {
         return dayNames.size();
@@ -42,5 +61,14 @@ public record SolverInput(
             if (!holidays.contains(d)) total += slotsPerDay[d];
         }
         return total;
+    }
+
+    /** The days {@code person} asked for, as a bitmask — 0 when they asked for nothing. */
+    int preferredMask(String person) {
+        int mask = 0;
+        for (int day : preferredDays.getOrDefault(person, Set.of())) {
+            mask |= (1 << day);
+        }
+        return mask;
     }
 }

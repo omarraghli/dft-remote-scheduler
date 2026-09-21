@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/chrome :: head('Fériés')}"></head>
+<body>
+
+<header th:replace="~{fragments/chrome :: bar('holidays')}"></header>
+
+<main class="wrap">
+
+    <div class="notices">
+        <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+        <!-- The case this page exists for: the week was planned before the announcement. -->
+        <p class="note note-warn" th:if="${coverageLow}">
+            <span th:if="${coveredUntil}">The calendar only runs to <b
+                    th:text="${coveredUntil}">samedi 14 août 2027</b>.</span>
+            <span th:unless="${coveredUntil}">No holidays are listed at all.</span>
+            Weeks planned past that are planned as though the Aïds were ordinary working days —
+            add the announced dates below.
+        </p>
+
+        <p class="note note-warn" th:if="${staleWeeks}">
+            Already planned with people on that day —
+            <span th:each="w, it : ${staleWeeks}">
+                <a th:href="@{/(week=${w})}" th:text="'week of ' + ${w}">week of 2027-03-08</a><span
+                    th:if="${!it.last}">, </span></span>.
+            Re-roll it, or the chart will show people remote on a day the office is shut.
+        </p>
+    </div>
+
+    <section class="masthead">
+        <div class="masthead-left">
+            <span class="eyebrow">Fériés</span>
+            <h1 class="display" th:text="${#lists.size(holidays)}">14</h1>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title">Add a holiday</h2>
+
+        <form method="post" th:action="@{/admin/holidays}" class="row-form">
+            <label class="field">
+                <span>Name</span>
+                <input type="text" name="name" required maxlength="120" placeholder="Aïd Al Fitr">
+            </label>
+
+            <label class="field">
+                <span>First day</span>
+                <input type="date" name="startDate" required th:value="${today}">
+            </label>
+
+            <label class="field">
+                <span>Length</span>
+                <input type="number" name="days" value="1" min="1" max="14" required>
+                <small>days — 2 for the Aïds</small>
+            </label>
+
+            <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+
+        <p class="panel-note">Nobody is remote on a holiday, and the week's quota drops with it:
+            one holiday leaves 2 remote days each, two or more leave 1.</p>
+    </section>
+
+    <table class="listing">
+        <thead>
+        <tr>
+            <th scope="col">Holiday</th>
+            <th scope="col">First day</th>
+            <th scope="col">Days</th>
+            <th scope="col">Falls on</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="h : ${holidays}" th:classappend="${h.weekendOnly} ? 'is-inactive' : ''">
+            <td>
+                <input type="text" name="name" th:value="${h.name}" maxlength="120" required
+                       th:attr="form='h-' + ${h.id}">
+            </td>
+
+            <td>
+                <input type="date" name="startDate" th:value="${h.startDate}" required
+                       th:attr="form='h-' + ${h.id}">
+            </td>
+
+            <td>
+                <input type="number" name="days" th:value="${h.days}" min="1" max="14" required
+                       class="n-days" th:attr="form='h-' + ${h.id}">
+            </td>
+
+            <td class="h-when">
+                <span th:text="${h.when}">vendredi 20 mars 2026</span>
+                <span class="pill pill-past" th:if="${h.weekendOnly}">weekend — no effect</span>
+                <a class="pill pill-warn" th:if="${h.plannedWeek}"
+                   th:href="@{/(week=${h.plannedWeek})}">week already planned</a>
+            </td>
+
+            <td class="u-actions">
+                <form method="post" th:action="@{'/admin/holidays/' + ${h.id}}"
+                      th:id="'h-' + ${h.id}" class="inline">
+                    <button type="submit" class="btn btn-quiet btn-sm">Save</button>
+                </form>
+
+                <form method="post" th:action="@{'/admin/holidays/' + ${h.id} + '/delete'}"
+                      class="inline"
+                      onsubmit="return confirm('Remove this holiday? Weeks already planned keep their schedule.');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+
+        <tr th:if="${#lists.isEmpty(holidays)}">
+            <td colspan="5" class="h-empty">Nothing yet. Add the next Aïd as soon as it is
+                announced.</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <section class="panel panel-quiet">
+        <h2 class="panel-title">National days</h2>
+
+        <ul class="annual-list">
+            <li th:each="a : ${annual}">
+                <b th:text="${a.name}">Marche Verte</b>
+                <span th:text="${a.when}">6 novembre</span>
+            </li>
+        </ul>
+
+        <p class="panel-note">Same date every year, so they are not managed here — they live in
+            <code>remote.public-holidays.annual</code> and apply to every year automatically.</p>
+    </section>
+
+</main>
+
+<footer th:replace="~{fragments/chrome :: foot(false)}"></footer>
+
+<script th:replace="~{fragments/chrome :: theme-script}"></script>
+
+</body>
+</html>

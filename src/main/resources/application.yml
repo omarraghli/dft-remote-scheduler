@@ -76,15 +76,86 @@ remote:
   # 2 means "never 3 remote days in a row".
   max-consecutive-days: 2
 
-  # Days with no remote work at all. Mind the capacity: 16 people x 3 days = 48 remote days
-  # needed, against 5 x 10 = 50 slots. Removing a day leaves 40 and makes the week infeasible,
-  # so drop remotes-per-person to 2 for a short week.
+  # Weekday names with no remote work, in every week — a standing closure, not a date. Public
+  # holidays go under public-holidays below, which is dated and lowers the quota on its own.
+  # Mind the capacity: 16 people x 3 days = 48 remote days needed, against 5 x 10 = 50 slots.
+  # Removing a day leaves 40 and makes the week infeasible, so drop remotes-per-person to 2.
   holidays: []
 
   # People who cannot be remote on a given day, e.g. the day they come back from vacation.
   vacation-returns: {}
   #  Oussama: Lundi
   #  Sara: Jeudi
+
+  # Moroccan public holidays. A holiday closes its column — nobody is remote on a day the office
+  # is shut — and shortens the week, so the quota drops with it.
+  public-holidays:
+    # Remote days per person, keyed by how many holidays land on a working day that week. A count
+    # with no entry of its own uses the highest entry below it, so 2 also covers 3 and 4.
+    quotas:
+      1: 2
+      2: 1
+
+    # The national days: same Gregorian date every year, MM-dd.
+    annual:
+      - { day: 01-01, name: Nouvel An }
+      - { day: 01-11, name: Manifeste de l'Indépendance }
+      - { day: 01-14, name: Nouvel An Amazigh }
+      - { day: 05-01, name: Fête du Travail }
+      - { day: 07-30, name: Fête du Trône }
+      - { day: 08-14, name: Oued Ed-Dahab }
+      - { day: 08-20, name: Révolution du Roi et du Peuple }
+      - { day: 08-21, name: Fête de la Jeunesse }
+      # Decreed in October 2025, so it is absent from older holiday lists.
+      - { day: 10-31, name: Fête de l'Unité }
+      - { day: 11-06, name: Marche Verte }
+      - { day: 11-18, name: Fête de l'Indépendance }
+
+    # The religious days move with the lunar calendar and are fixed by moon sighting, announced
+    # only days before — so they live in the database, not here, and admins add or correct them
+    # at /admin/holidays without a redeploy. Each start adds only the dates past the last stored
+    # holiday, so appending years here extends the calendar while everything already in the table
+    # stays as the admins left it. Consecutive days under one name become one entry, so a two-day
+    # Aïd is a single holiday of two days.
+    #
+    # The dates follow the Umm al-Qura calculation, which is routinely a day out from what
+    # Morocco observes — confirm each against the official announcement.
+    dated:
+      - { date: 2026-03-20, name: Aïd Al Fitr }
+      - { date: 2026-03-21, name: Aïd Al Fitr }
+      - { date: 2026-05-27, name: Aïd Al Adha }
+      - { date: 2026-05-28, name: Aïd Al Adha }
+      - { date: 2026-06-16, name: Fatih Muharram }
+      - { date: 2026-08-25, name: Aïd Al Mawlid }
+      - { date: 2026-08-26, name: Aïd Al Mawlid }
+      - { date: 2027-03-09, name: Aïd Al Fitr }
+      - { date: 2027-03-10, name: Aïd Al Fitr }
+      - { date: 2027-05-16, name: Aïd Al Adha }
+      - { date: 2027-05-17, name: Aïd Al Adha }
+      - { date: 2027-06-06, name: Fatih Muharram }
+      - { date: 2027-08-14, name: Aïd Al Mawlid }
+      - { date: 2027-08-15, name: Aïd Al Mawlid }
+      - { date: 2028-02-27, name: Aïd Al Fitr }
+      - { date: 2028-02-28, name: Aïd Al Fitr }
+      - { date: 2028-05-05, name: Aïd Al Adha }
+      - { date: 2028-05-06, name: Aïd Al Adha }
+      - { date: 2028-05-25, name: Fatih Muharram }
+      - { date: 2028-08-03, name: Aïd Al Mawlid }
+      - { date: 2028-08-04, name: Aïd Al Mawlid }
+      - { date: 2029-02-15, name: Aïd Al Fitr }
+      - { date: 2029-02-16, name: Aïd Al Fitr }
+      - { date: 2029-04-24, name: Aïd Al Adha }
+      - { date: 2029-04-25, name: Aïd Al Adha }
+      - { date: 2029-05-14, name: Fatih Muharram }
+      - { date: 2029-07-24, name: Aïd Al Mawlid }
+      - { date: 2029-07-25, name: Aïd Al Mawlid }
+      - { date: 2030-02-04, name: Aïd Al Fitr }
+      - { date: 2030-02-05, name: Aïd Al Fitr }
+      - { date: 2030-04-13, name: Aïd Al Adha }
+      - { date: 2030-04-14, name: Aïd Al Adha }
+      - { date: 2030-05-03, name: Fatih Muharram }
+      - { date: 2030-07-13, name: Aïd Al Mawlid }
+      - { date: 2030-07-14, name: Aïd Al Mawlid }
 
   security:
     bootstrap:

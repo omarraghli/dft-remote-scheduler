@@ -30,9 +30,11 @@ public class ScheduleExcelExporter {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final RemoteScheduleProperties properties;
+    private final HolidayCalendar holidays;
 
-    public ScheduleExcelExporter(RemoteScheduleProperties properties) {
+    public ScheduleExcelExporter(RemoteScheduleProperties properties, HolidayCalendar holidays) {
         this.properties = properties;
+        this.holidays = holidays;
     }
 
     /** The workbook as bytes, for serving over HTTP. */
@@ -66,6 +68,7 @@ public class ScheduleExcelExporter {
 
         List<String> days = properties.getDays();
         Map<Integer, List<String>> peopleByDay = schedule.peopleByDayIndex();
+        Map<Integer, String> holidayNames = holidays.namesByDayIndex(schedule.getWeekStart());
 
         Row titleRow = sheet.createRow(0);
         titleRow.createCell(0).setCellValue(
@@ -76,8 +79,11 @@ public class ScheduleExcelExporter {
         for (int d = 0; d < days.size(); d++) {
             int count = peopleByDay.getOrDefault(d, List.of()).size();
             int capacity = properties.getSlotsPerDay().get(d);
+            String holiday = holidayNames.get(d);
 
-            headerRow.createCell(d).setCellValue(days.get(d) + " (" + count + "/" + capacity + ")");
+            headerRow.createCell(d).setCellValue(holiday != null
+                    ? days.get(d) + " — " + holiday
+                    : days.get(d) + " (" + count + "/" + capacity + ")");
             headerRow.getCell(d).setCellStyle(headerStyle);
         }
 

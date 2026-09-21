@@ -16,15 +16,116 @@ fill in a shared spreadsheet.
 | Remote slots per day | 10 | `remote.slots-per-day` |
 | Remote days per person | exactly 3 | `remote.remotes-per-person` |
 | Consecutive remote days | at most 2, so never 3 in a row | `remote.max-consecutive-days` |
-| Holidays | none by default | `remote.holidays` |
+| Public holidays | the Moroccan calendar | `/admin/holidays`, seeded from `remote.public-holidays` |
+| Standing closures | none by default | `remote.holidays` |
 | Vacation returns | none by default | `remote.vacation-returns` |
+| Preferred remote days | any, per week, a wish | the schedule page |
+| On-site days | none, admins only | `/admin/week` |
 
 Everything above lives in `application.yml`. Nothing about the team is hardcoded in Java.
 
 **Capacity is tight on purpose.** 16 people × 3 days = **48 remote days** against
-5 × 10 = **50 slots**. Two slots of slack. Declaring a holiday drops capacity to 40, which makes
-the week infeasible — the app says so clearly instead of quietly producing an unfair schedule.
-For a short week, lower `remote.remotes-per-person` to 2.
+5 × 10 = **50 slots**. Two slots of slack. Losing a day drops capacity to 40, which would make the
+week infeasible — so a week with a public holiday in it lowers the quota instead, and the app says
+so clearly rather than quietly producing an unfair schedule.
+
+---
+
+## Jours fériés
+
+The app knows the Moroccan public holidays and **nobody is remote on one** — the office is shut,
+so the day is not a remote day. The column is marked on the chart with the holiday's name, and a
+strip above it names the ones falling in the week on screen. Weeks you have not generated yet show
+them too, so you can see a short week coming.
+
+**A short week lowers the quota**, because the usual three remote days no longer fit:
+
+| Holidays in the week | Remote days per person |
+|---|---|
+| none | 3 |
+| one | 2 |
+| two or more | 1 |
+
+That ladder is `remote.public-holidays.quotas`, keyed by the number of holidays; a count with no
+entry of its own uses the highest entry below it. The quota is only ever lowered, never raised
+above `remote.remotes-per-person`. The page's **Each** figure and the red off-quota marking follow
+the week being shown, so a holiday week is not flagged as everybody having missed their target.
+
+Holidays are never computed, and they come from two places, because the two kinds behave
+differently.
+
+**The eleven national days are rules in `application.yml`** — `11-18`, `07-30`, `01-11` and the
+rest, written as `MM-dd` under `remote.public-holidays.annual`. They hold for every year
+automatically and nobody ever needs to touch them. The list includes the two recent additions,
+`01-14` Nouvel An Amazigh and `10-31` Fête de l'Unité, which older holiday calendars predate.
+
+**The religious days are rows in the database**, managed at **`/admin/holidays`**. They move with
+the lunar calendar and are fixed by moon sighting, announced only days before — so waiting on a
+code change and a redeploy is exactly the wrong shape. Any admin can add, edit or delete one from
+the browser:
+
+- **name**, **first day** and **length in days** — one entry however long it runs, so a two-day
+  Aïd is a single holiday of 2 days rather than two rows
+- entering the same one twice is refused, naming what it overlaps, because a silent duplicate
+  would only show up the week it mattered
+- a holiday landing on a weekend is kept but marked *no effect* — it has no column
+- **if the week was already planned**, the page says so and links straight to it: those
+  assignments were made when the day was still a working one, so the week needs a re-roll
+- **if the calendar is within six months of running out**, the page says that too, because past
+  its last entry every week plans as though the Aïds were ordinary working days
+
+`remote.public-holidays.dated` keeps it topped up — the shipped list runs to July 2030, following
+the Umm al-Qura calculation, which is routinely a day out from what Morocco observes. Confirm each
+against the official announcement and correct it on the page.
+
+Each start reads that list and adds **only the dates falling past the last stored holiday**.
+Everything up to that point belongs to whoever has been editing the page: a corrected Aïd stays
+corrected and a deleted one stays deleted, however the configuration reads. Extending the calendar
+is therefore just a matter of appending to the list and restarting; changing a date already stored
+is not, and has to be done on the page.
+
+Anything else — a day the whole team takes off, or one person's return from vacation — is still
+`remote.holidays` (weekday names, every week) or `remote.vacation-returns` (one person, one day).
+
+---
+
+## Wishes and pins
+
+Two things steer a week before it is rolled, and they are deliberately not the same strength.
+
+**You can ask for days.** Sign in, open the week you care about, and tick the days you would
+rather work from home. It is a wish, not a booking: the schedule grants as many as it can, and
+when more people want Vendredi than there are slots on it, who gets it is down to the draw — the
+same draw that decides everything else. A wish can never make a week impossible and never bends
+a rule; your three days, the two-in-a-row limit and the ten slots hold whatever anybody asked
+for. Ask for nothing and nothing changes. Ask for all five and you still get three.
+
+What a wish does change is the shape of the week. Left alone the schedule spreads people evenly,
+10/10/10/9/9. If half the team wants Lundi, Lundi fills and the quiet days stay quiet — which is
+the point, but it does mean a week with strong preferences will not look as flat as one without.
+
+Your account has to be linked to a roster name for the control to appear. That is the same link
+that marks your own row on the chart, and an admin sets it at `/admin/users`.
+
+**Admins can require days.** A comité, a client on site, an onboarding — **`/admin/week`** is one
+grid, the roster down the side and the week across the top, where an admin ticks who has to be in
+the office when, and can tick wishes on behalf of anyone without an account. The office box is
+**hard**: nobody is given a remote day they are needed in the office on, exactly as though it
+were a public holiday for them alone. The chart marks those cells with a dot, so a row that looks
+short has a visible reason.
+
+**Two pins on one person can leave a week with no answer**, and the page says so instead of
+letting you find out on Thursday. Three remote days out of five, never three in a row, means
+holding somebody in the office on Lundi *and* Vendredi leaves them Mardi to Jeudi — a run of
+three, and against the rules. So is Lundi and Mardi, and so is Jeudi and Vendredi. That save is
+refused with the reason and nothing is stored. Any other pair is fine, and in a week with a férié
+in it the room runs out one day sooner. A week that was already unplannable before the change is
+not blamed on it, and the grid carries a standing warning while it stays that way.
+
+**If the week was already planned**, both pages say so — the grid links straight to it when a pin
+lands on a day that person is already remote on. The week is never re-rolled for you: those
+assignments are what the team is working to, and discarding them is a decision, not a side
+effect. Until somebody re-rolls, nothing either page records changes the chart.
 
 ---
 
@@ -49,7 +150,7 @@ logging:
 ```
 
 ```bash
-./gradlew test    # 35 tests
+./gradlew test    # 112 tests
 ./gradlew build   # compile, test, package
 ```
 
@@ -84,10 +185,10 @@ To change the schema, add a new change file and include it — never edit an app
 
 Everything is behind a sign-in. There are two roles:
 
-| | Read the schedule | Export .xlsx | Generate / re-roll | Manage accounts |
-|---|---|---|---|---|
-| **User** | yes | yes | no | no |
-| **Admin** | yes | yes | yes | yes |
+| | Read the schedule | Export .xlsx | Ask for days | Generate / re-roll | Require days on site | Manage accounts | Manage holidays |
+|---|---|---|---|---|---|---|---|
+| **User** | yes | yes | for themselves | no | no | no | no |
+| **Admin** | yes | yes | for anyone | yes | yes | yes | yes |
 
 A read-only user simply doesn't see the buttons they can't use, and the server refuses the
 requests anyway — the page hiding them is a courtesy, not the control.
@@ -141,6 +242,15 @@ three days would be a rule violation you could spot from across the room. Column
 each day's fill (`10/10`) with a meter, the Σ column carries each person's total, and any row that
 missed its quota is marked in red.
 
+A **public holiday** closes its column: the heading carries the holiday's name, the cells are
+hatched rather than merely empty, and the strip above the chart spells out the week's fériés and
+the remote days each person gets in it.
+
+A cell an admin has marked **on site** carries a dot: that person is needed in the office that
+day, so the schedule never gave them one there. Under the chart, if your account is linked to a
+roster name, a row of checkboxes lets you say which days you would rather be remote the next time
+that week is rolled.
+
 **←** and **→** step a week at a time — as do the arrow keys — and **Today** jumps back to the
 current one. When the week on screen is the current one, today's column is tinted.
 Navigation is not limited to weeks that exist: land on a week nobody has scheduled and you get an
@@ -151,9 +261,19 @@ A week that already has a schedule shows **Re-roll** and **Export .xlsx** instea
 overwrites: it refuses and says so, and re-rolling is a separate, explicit button. Same rule the
 Thursday job follows, so nothing the team is already using gets discarded by a stray click.
 
-A **Light / Auto / Dark** switch sits in the top bar. Auto follows the system setting and is the
-default; picking a side stores it in the browser and an inline script applies it before first
-paint, so switching never flashes the other theme. The choice is per browser, not shared.
+**Every page wears the same bar**: the mark, the sections — Chart, Semaine, Fériés, Accounts,
+with the one you are on marked and the ones you cannot open simply absent — then the theme switch,
+who you are signed in as, and the way out. The section links carry the week you are looking at, so
+stepping from the chart to the week grid and back stays on that week instead of snapping to today.
+Under it, on the two pages that have a week, a strip carries **←**, the week, **→** and **Today**.
+That is a strip rather than more bar because it belongs to the page and not to the site — and
+because four sections, an email address and a date range do not fit on one line. It is all one
+Thymeleaf fragment, `templates/fragments/chrome.html`, rather than a header per page, which is how
+the pages drifted apart in the first place.
+
+A **Light / Auto / Dark** switch sits in that bar, on every page. Auto follows the system setting
+and is the default; picking a side stores it in the browser and an inline script applies it before
+first paint, so switching never flashes the other theme. The choice is per browser, not shared.
 
 The page is plain server-rendered Thymeleaf with one small stylesheet and a few dozen lines of
 JavaScript for the theme switch and the arrow keys — no build step, no framework, no webfont to
@@ -168,6 +288,9 @@ fetch.
 | `GET` | `/api/schedules/{date}` | the week containing `{date}` — any day of it works |
 | `POST` | `/api/schedules/generate?week=&replace=` | run the distribution now; `week` defaults to next week |
 | `GET` | `/api/schedules/{date}/export` | download that week as `.xlsx` |
+
+Each day in the response carries the holiday closing it, if any, and the schedule carries the
+`remotesPerPerson` that week was planned with — 2 or 1 in a week with holidays.
 
 **Generating never writes a file.** It produces a schedule and stores it, nothing more. The
 workbook is built on demand, in memory, by the export endpoint — the only place `.xlsx` comes
@@ -211,34 +334,54 @@ chosen, so the search grinds through enormous numbers of branches that were doom
 So the search is transposed. Each person is assigned one **week pattern** — a 5-bit mask of the
 days they are remote:
 
-- exactly 3 bits set (the quota, true by construction)
+- exactly as many bits set as the week's quota — 3 normally, fewer in a holiday week (true by
+  construction)
 - no 3 bits in a row (the consecutive rule, one bit test: `mask & (mask>>1) & (mask>>2)`)
-- nothing on a holiday or a vacation-return day
+- nothing on a holiday, a vacation-return day, or a day they are needed in the office
 
 That leaves **7 valid patterns** per person, out of 32 possible subsets — and crucially that
 number does not grow with the team. Only daily capacity has to be tracked while backtracking.
 The solver handles 200 people in well under a second.
 
-Two more touches:
+Three more touches:
 
 - **Fairness** — the people order and each person's pattern order are shuffled, so the same
   people do not always get the same days. Pass a seeded `Random` to make a run reproducible.
 - **Balance** — patterns are tried least-loaded-day first, so a week lands on 10/10/10/9/9
   rather than 10/10/10/10/8. This only reorders the search, so no valid schedule is ruled out.
+  A week with strong preferences in it lands less flat than that, by design.
+- **Wishes** — people who asked for days are placed first, and each of them is offered the
+  patterns granting the most of what they asked for before the rest. Like balance this is *only*
+  an ordering: a preference never enters the pattern enumeration, so it cannot rule out a valid
+  week and cannot bend the quota, the consecutive-day limit or the slots. Days somebody is needed
+  in the office are the opposite — they go in with the holidays, as days the pattern may not
+  touch at all.
+
+Chasing wishes can walk the search into a corner. If a whole team asks for Lundi and Vendredi,
+only four of them can have both — the rest of the week cannot absorb the others — and finding
+that out means unwinding a long way. So the wish-first pass has a node budget, and past it the
+week is planned with the wishes demoted to a tie-break, then without them. Every pass obeys every
+rule; the later ones simply grant less of what was asked for. A week always comes out, in
+milliseconds.
 
 ## Layout
 
 ```
 solver/      ScheduleSolver, WeekPatterns — pure algorithm, no Spring or JPA
-domain/      WeekSchedule, RemoteAssignment — JPA entities
+domain/      WeekSchedule, RemoteAssignment, AppUser, Holiday, RemotePreference,
+             OnSiteDay — JPA entities
 repository/  WeekScheduleRepository
-service/     ScheduleService (solve + persist), ScheduleExcelExporter, WeekStarts
+service/     ScheduleService (solve + persist), WeekPlanService, HolidayCalendar,
+             HolidayService, HolidaySeed,
+             ScheduleExcelExporter, WeekStarts
 scheduler/   WeeklyScheduleJob — the Thursday cron
 web/         REST controller, page controller, DTO, problem-detail handler
-config/      RemoteScheduleProperties — the YAML binding
+config/      RemoteScheduleProperties, PublicHolidayProperties — the YAML binding
 
 resources/db/changelog/   Liquibase master + change files
 templates/schedule.html   the page (Thymeleaf)
+templates/fragments/      the head, bar and footer every page shares
+templates/admin/          accounts, holidays and the week grid
 ```
 
 A schedule is always keyed by the **Monday its week starts on** (`WeekStarts`), so any date in a
@@ -306,8 +449,8 @@ Three things worth knowing about GitHub's scheduler:
 
 ## Tests
 
-`./gradlew test` runs 35 tests. The 24 solver and `WeekStarts` tests are plain unit tests with no
-Spring context. The rest extend `AbstractPostgresIntegrationTest`, which starts a throwaway
+`./gradlew test` runs 112 tests. The 43 solver, `WeekStarts` and `HolidayCalendar` tests are plain
+unit tests with no Spring context. The rest extend `AbstractPostgresIntegrationTest`, which starts a throwaway
 **PostgreSQL 16 in Testcontainers** with Liquibase enabled and `ddl-auto=validate` — so every run
 checks the changelog and the entities still agree. Docker must be running.
 

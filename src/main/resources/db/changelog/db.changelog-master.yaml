@@ -3,3 +3,7 @@ databaseChangeLog:
       file: db/changelog/changes/000-init-schema.yaml
   - include:
       file: db/changelog/changes/001-app-user.yaml
+  - include:
+      file: db/changelog/changes/002-public-holiday.yaml
+  - include:
+      file: db/changelog/changes/003-week-plan.yaml

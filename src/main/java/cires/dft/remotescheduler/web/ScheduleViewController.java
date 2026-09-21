@@ -2,9 +2,14 @@ package cires.dft.remotescheduler.web;
 
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.WeekSchedule;
+import cires.dft.remotescheduler.service.HolidayCalendar;
+import cires.dft.remotescheduler.service.PublicHoliday;
 import cires.dft.remotescheduler.service.ScheduleAlreadyExistsException;
 import cires.dft.remotescheduler.service.ScheduleService;
 import cires.dft.remotescheduler.security.AppUserPrincipal;
+import cires.dft.remotescheduler.service.WeekPlan;
+import cires.dft.remotescheduler.service.WeekPlanException;
+import cires.dft.remotescheduler.service.WeekPlanService;
 import cires.dft.remotescheduler.service.WeekStarts;
 import cires.dft.remotescheduler.solver.NoFeasibleScheduleException;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -17,10 +22,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.WeekFields;
-import java.util.Locale;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** The page the team looks at. */
 @Controller
@@ -28,20 +33,19 @@ public class ScheduleViewController {
 
     public static final String TRIGGER = "web";
 
-    /** Day names are configured in French, so the dates on the page follow. */
-    private static final Locale PAGE_LOCALE = Locale.FRENCH;
-    private static final DateTimeFormatter DAY_MONTH =
-            DateTimeFormatter.ofPattern("d MMM", PAGE_LOCALE);
-    private static final DateTimeFormatter DAY_MONTH_YEAR =
-            DateTimeFormatter.ofPattern("d MMM yyyy", PAGE_LOCALE);
-
     private final ScheduleService scheduleService;
     private final RemoteScheduleProperties properties;
+    private final HolidayCalendar holidays;
+    private final WeekPlanService weekPlans;
 
     public ScheduleViewController(ScheduleService scheduleService,
-                                  RemoteScheduleProperties properties) {
+                                  RemoteScheduleProperties properties,
+                                  HolidayCalendar holidays,
+                                  WeekPlanService weekPlans) {
         this.scheduleService = scheduleService;
         this.properties = properties;
+        this.holidays = holidays;
+        this.weekPlans = weekPlans;
     }
 
     /**
@@ -60,15 +64,16 @@ public class ScheduleViewController {
 
         LocalDate shownWeek = WeekStarts.of(week != null ? week : scheduleService.today());
         Optional<WeekSchedule> schedule = scheduleService.findByWeek(shownWeek);
+        List<PublicHoliday> weekHolidays = holidays.inWeek(shownWeek);
 
         model.addAttribute("schedule",
-                schedule.map(s -> ScheduleResponse.from(s, properties)).orElse(null));
+                schedule.map(s -> ScheduleResponse.from(s, properties, holidays)).orElse(null));
         model.addAttribute("shownWeek", shownWeek);
         model.addAttribute("prevWeek", shownWeek.minusWeeks(1));
         model.addAttribute("nextWeek", shownWeek.plusWeeks(1));
         model.addAttribute("currentWeek", WeekStarts.of(scheduleService.today()));
         model.addAttribute("weekNumber", shownWeek.get(WeekFields.ISO.weekOfWeekBasedYear()));
-        model.addAttribute("weekRange", weekRange(shownWeek));
+        model.addAttribute("weekRange", WeekLabels.range(shownWeek, properties.getDays().size()));
         model.addAttribute("dayNames", properties.getDays());
         model.addAttribute("todayIndex", todayIndex(shownWeek));
         // Lets the chart mark the signed-in person's own row.
@@ -78,10 +83,33 @@ public class ScheduleViewController {
         model.addAttribute("people", properties.getPeople().stream()
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList());
-        model.addAttribute("remotesPerPerson", properties.getRemotesPerPerson());
+        // The shown week's own quota — a holiday lowers it, and the chart would otherwise flag
+        // every row as having missed a target that week never had.
+        int quota = holidays.remotesPerPerson(shownWeek);
+        model.addAttribute("remotesPerPerson", quota);
+        model.addAttribute("quotaLowered", quota < properties.getRemotesPerPerson());
+        model.addAttribute("holidays", weekHolidays.stream()
+                .map(h -> new HolidayView(h.name(),
+                        h.dayName() + " " + WeekLabels.DAY_MONTH.format(h.date())))
+                .toList());
+        model.addAttribute("holidayNames", holidays.namesByDayIndex(shownWeek));
         model.addAttribute("maxConsecutiveDays", properties.getMaxConsecutiveDays());
 
+        // What the week has been asked for and what it requires: the pins are drawn on
+        // everybody's row, the wishes only ever on your own.
+        WeekPlan plan = weekPlans.forWeek(shownWeek);
+        String me = principal == null ? null : principal.getRosterName();
+        model.addAttribute("onSite", plan.onSite());
+        model.addAttribute("myPreferred", me == null ? Set.of() : plan.preferredFor(me));
+        model.addAttribute("myOnSite", me == null ? Set.of() : plan.onSiteFor(me));
+        model.addAttribute("canSetPreferences",
+                me != null && !shownWeek.isBefore(WeekStarts.of(scheduleService.today())));
+
         return "schedule";
+    }
+
+    /** One holiday as the strip above the chart prints it, dated in the page's own locale. */
+    public record HolidayView(String name, String when) {
     }
 
     /**
@@ -94,17 +122,6 @@ public class ScheduleViewController {
 
         int index = (int) java.time.temporal.ChronoUnit.DAYS.between(shownWeek, today);
         return index < properties.getDays().size() ? index : -1;
-    }
-
-    /** e.g. {@code 21 – 25 sept. 2026}, dropping the year from the first date when it repeats. */
-    private String weekRange(LocalDate weekStart) {
-        LocalDate weekEnd = weekStart.plusDays(Math.max(properties.getDays().size() - 1, 0));
-
-        String from = weekStart.getYear() == weekEnd.getYear()
-                ? DAY_MONTH.format(weekStart)
-                : DAY_MONTH_YEAR.format(weekStart);
-
-        return from + " – " + DAY_MONTH_YEAR.format(weekEnd);
     }
 
     /**
@@ -134,6 +151,55 @@ public class ScheduleViewController {
         }
 
         // Always land back on the week the user was looking at, generated or not.
+        redirectAttributes.addAttribute("week", target.toString());
+        return "redirect:/";
+    }
+
+    /**
+     * The days you would rather be remote on, for the week you are looking at.
+     *
+     * <p>Who they are for comes from the signed-in account and never from the request, so this
+     * cannot be used to rewrite somebody else's week. An admin setting days for other people
+     * does it on the grid at {@code /admin/week}, which is behind {@code /admin/**}.
+     *
+     * <p>The on-site days go back unchanged: they are not this person's to set, and the whole
+     * row is replaced in one go.
+     */
+    @PostMapping("/preferences")
+    public String preferences(@RequestParam(required = false)
+                              @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
+                              @RequestParam(required = false) Set<Integer> preferred,
+                              @AuthenticationPrincipal AppUserPrincipal principal,
+                              RedirectAttributes redirectAttributes) {
+
+        LocalDate target = WeekStarts.of(week != null ? week : scheduleService.today());
+        String me = principal == null ? null : principal.getRosterName();
+
+        if (me == null) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Your account is not linked to anyone on the roster, so there is nobody to "
+                            + "set days for. An admin can link it at /admin/users.");
+            redirectAttributes.addAttribute("week", target.toString());
+            return "redirect:/";
+        }
+
+        try {
+            scheduleService.setWeekPlan(target, me,
+                    preferred == null ? Set.of() : preferred,
+                    weekPlans.forWeek(target).onSiteFor(me),
+                    principal.getUsername());
+
+            redirectAttributes.addFlashAttribute("message",
+                    scheduleService.findByWeek(target).isPresent()
+                            ? "Saved — this week is already planned, so it takes a re-roll for "
+                                    + "them to count."
+                            : "Saved. They are taken into account the next time this week is "
+                                    + "planned.");
+
+        } catch (WeekPlanException | IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+
         redirectAttributes.addAttribute("week", target.toString());
         return "redirect:/";
     }

@@ -130,7 +130,8 @@ body {
 .bar {
     display: flex;
     align-items: center;
-    gap: 20px;
+    flex-wrap: wrap;
+    gap: 14px 18px;
     max-width: 960px;
     margin: 0 auto;
     padding: 18px 24px;
@@ -158,11 +159,26 @@ body {
     color: var(--ink-35);
 }
 
-.weeknav {
+/* ── The week strip ──────────────────────────────────────────────────────── */
+
+/* Under the bar rather than in it. The bar is the site; this is the page, and it is the
+   control both week pages are used through. */
+.weekbar-strip { border-bottom: 1px solid var(--rule-soft); }
+
+.weekbar {
     display: flex;
     align-items: center;
-    gap: 4px;
-    margin-left: auto;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.weekbar-nav, .weekbar-now {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .step {
@@ -180,7 +196,7 @@ body {
 
 .step:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
-.weeknav-mid {
+.weekbar-mid {
     display: flex;
     align-items: baseline;
     gap: 8px;
@@ -188,17 +204,16 @@ body {
     white-space: nowrap;
 }
 
-.weeknav-mid b {
+.weekbar-mid b {
     font-family: var(--mono);
     font-size: 12px;
     letter-spacing: .04em;
     color: var(--accent);
 }
 
-.weeknav-mid span { font-size: 13px; color: var(--ink-55); }
+.weekbar-mid span { font-size: 13px; color: var(--ink-55); }
 
 .today {
-    margin-left: 6px;
     padding: 5px 10px;
     border-radius: var(--radius);
     font-size: 12px;
@@ -210,7 +225,15 @@ body {
 .today:hover { background: var(--accent-bg); color: var(--accent-ink); }
 .today.is-hidden { visibility: hidden; }
 
-.bar-meta { flex: 0 0 auto; }
+/* Theme, who you are, and the way out. Last on the bar because they are the things you
+   reach for least. */
+.bar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
 
 /* ── Theme switch ────────────────────────────────────────────────────────── */
 
@@ -282,6 +305,8 @@ body {
 
 .note-ok  { background: var(--ok-bg);  border-color: var(--ok);  color: var(--ok); }
 .note-err { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+.note-warn { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); }
+.note-warn a { color: inherit; }
 
 /* ── Masthead ────────────────────────────────────────────────────────────── */
 
@@ -366,6 +391,44 @@ body {
 
 .btn-quiet { border-color: var(--rule); color: var(--ink-55); }
 .btn-quiet:hover { background: var(--err-bg); border-color: var(--err); color: var(--err); }
+
+/* ── Jours fériés ────────────────────────────────────────────────────────── */
+
+.holiday-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 18px;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    border-left: 2px solid var(--accent);
+    background: var(--accent-bg);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 13px;
+}
+
+.holiday-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+}
+
+.holiday-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.holiday-list b { font-weight: 600; }
+.holiday-list span { color: var(--ink-55); }
+
+.holiday-note { margin-left: auto; color: var(--ink-55); }
+.holiday-note b { color: var(--ink); font-weight: 600; }
 
 /* ── The chart ───────────────────────────────────────────────────────────── */
 
@@ -528,6 +591,47 @@ body {
 /* Today's column gets a faint wash behind it rather than a different bar colour. */
 .c-day.is-today, .c-cell.is-today { background: var(--accent-bg); }
 
+/* A public holiday: the column is out of play, and the heading says which one. Drawn after
+   today's wash so a holiday that falls on today still reads as closed. */
+.d-holiday {
+    display: block;
+    margin-top: 3px;
+    padding-right: 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--accent-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.c-day.is-holiday .d-abbr { color: var(--ink-35); }
+.c-day.is-holiday .d-load, .c-day.is-holiday .meter { opacity: .45; }
+
+.c-cell.is-holiday {
+    background: repeating-linear-gradient(135deg,
+            transparent, transparent 5px, var(--rule-soft) 5px, var(--rule-soft) 10px);
+}
+
+.c-cell.is-holiday .blk { box-shadow: none; }
+
+/* A day somebody is needed in the office. Marked rather than hatched: the office is open,
+   it is one person who is in it, and the dot explains why their row looks short. */
+.c-cell.is-onsite .blk {
+    box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+.c-cell.is-onsite .blk::after {
+    content: "";
+    display: block;
+    width: 5px;
+    height: 5px;
+    margin: calc((var(--cell-h) - 5px) / 2) auto 0;
+    border-radius: 50%;
+    background: var(--ink-35);
+}
+
 /* ── Empty week ──────────────────────────────────────────────────────────── */
 
 .chart.is-ghost { opacity: .32; filter: saturate(0); pointer-events: none; user-select: none; }
@@ -596,11 +700,14 @@ kbd {
 
 /* ── Narrow screens ──────────────────────────────────────────────────────── */
 
+/* The sections drop to a line of their own before the mark and the identity have to shrink. */
+@media (max-width: 900px) {
+    .bar { gap: 12px 14px; }
+    .bar-right { order: 2; }
+    .nav { order: 3; width: 100%; margin-left: -11px; }
+}
+
 @media (max-width: 860px) {
-    .bar { flex-wrap: wrap; gap: 12px; }
-    .weeknav { margin-left: auto; order: 3; width: 100%; justify-content: space-between; }
-    .bar-meta { margin-left: auto; }
-    .theme { order: 2; }
     .masthead { padding-top: 24px; }
     .masthead-right { text-align: left; margin-left: 0; width: 100%; }
     .facts { justify-content: flex-start; gap: 20px; }
@@ -617,7 +724,9 @@ kbd {
     .c-total { width: 34px; }
     .chart tbody th.c-name { font-size: 12.5px; }
     .blk { margin: 0 2px; }
-    .weeknav-mid span { display: none; }
+    .weekbar-mid span { display: none; }
+    .weekbar { padding-left: 16px; padding-right: 16px; }
+    .who { max-width: 11ch; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -626,34 +735,32 @@ kbd {
 
 /* ── Signed-in identity, in the top bar ──────────────────────────────────── */
 
-.whoami {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex: 0 0 auto;
-    font-size: 12px;
-}
-
 .who {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    font-size: 12px;
     color: var(--ink-55);
     text-decoration: none;
-    max-width: 22ch;
+    max-width: 18ch;
 }
 
 .who:hover { color: var(--ink); }
 
 .who-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.who-link {
-    color: var(--ink-35);
-    text-decoration: none;
-    white-space: nowrap;
+/* Small chips: the admin badge in the bar, "you" on your own row. */
+.tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--rule-soft);
+    color: var(--ink-55);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
 }
-
-.who-link:hover { color: var(--accent-ink); }
 
 .tag-me { background: var(--accent); color: #fff; }
 
@@ -736,20 +843,35 @@ body.centred {
 .btn-danger { border-color: var(--rule); color: var(--err); }
 .btn-danger:hover { background: var(--err); border-color: var(--err); color: var(--paper); }
 
-/* ── Accounts page ───────────────────────────────────────────────────────── */
+/* ── Admin pages ─────────────────────────────────────────────────────────── */
 
-.crumbs {
+/* The sections, the same on every page. Which one you are on is the only state here, so
+   it is the only one that gets any colour. */
+.nav {
     display: flex;
-    gap: 8px;
     align-items: center;
-    margin-left: auto;
-    font-size: 13px;
-    color: var(--ink-35);
+    gap: 2px;
+    flex: 0 0 auto;
 }
 
-.crumbs a { color: var(--ink-55); text-decoration: none; }
-.crumbs a:hover { color: var(--accent-ink); }
-.crumbs b { color: var(--ink); font-weight: 600; }
+.nav-link {
+    padding: 6px 11px;
+    border-radius: var(--radius);
+    font-size: 12.5px;
+    color: var(--ink-55);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background .12s ease, color .12s ease;
+}
+
+.nav-link:hover { background: var(--rule-soft); color: var(--ink); }
+.nav-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.nav-link.is-on {
+    background: var(--accent-bg);
+    color: var(--accent-ink);
+    font-weight: 600;
+}
 
 .panel {
     border: 1px solid var(--rule);
@@ -802,9 +924,9 @@ body.centred {
 
 .secret-note { margin: 0; font-size: 12px; color: var(--ink-55); }
 
-.users { width: 100%; border-collapse: collapse; }
+.users, .listing { width: 100%; border-collapse: collapse; }
 
-.users thead th {
+.users thead th, .listing thead th {
     text-align: left;
     padding: 0 10px 8px 0;
     border-bottom: 1.5px solid var(--ink);
@@ -815,10 +937,15 @@ body.centred {
     color: var(--ink-35);
 }
 
-.users td { padding: 10px 10px 10px 0; vertical-align: middle; font-size: 13.5px; }
-.users tbody tr { border-bottom: 1px solid var(--rule-soft); }
-.users tbody tr:hover { background: var(--rule-soft); }
-.users tbody tr.is-inactive { opacity: .55; }
+.users td, .listing td {
+    padding: 10px 10px 10px 0;
+    vertical-align: middle;
+    font-size: 13.5px;
+}
+
+.users tbody tr, .listing tbody tr { border-bottom: 1px solid var(--rule-soft); }
+.users tbody tr:hover, .listing tbody tr:hover { background: var(--rule-soft); }
+.users tbody tr.is-inactive, .listing tbody tr.is-inactive { opacity: .55; }
 
 .u-email { display: flex; align-items: center; gap: 8px; }
 .u-roster, .u-seen { color: var(--ink-55); }
@@ -826,9 +953,119 @@ body.centred {
 
 .pill-warn { border-color: var(--accent); color: var(--accent-ink); }
 
+/* ── Fériés page ─────────────────────────────────────────────────────────── */
+
+/* Every row is an edit form: the fields sit in the cells and post to the form in the
+   last one, so a correction is typed where it is read. */
+.listing input { width: 100%; }
+.listing .n-days { width: 68px; }
+
+.h-when {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--ink-55);
+}
+
+.h-when .pill { flex: 0 0 auto; }
+a.pill-warn { text-decoration: none; }
+a.pill-warn:hover { background: var(--accent-bg); }
+
+.h-empty { color: var(--ink-35); padding: 16px 0 !important; }
+
+.panel-quiet { background: transparent; }
+
+.annual-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+}
+
+.annual-list span { color: var(--ink-55); }
+
+/* ── Semaine page ────────────────────────────────────────────────────────── */
+
+/* Two boxes per cell, because the two things a week can be told are not the same thing:
+   one is asked for, the other is required. */
+.grid-week .c-name { text-align: left; font-size: 13.5px; white-space: nowrap; }
+.grid-week thead th { white-space: nowrap; vertical-align: bottom; }
+.grid-week input[type="checkbox"] { width: auto; margin: 0; cursor: pointer; }
+.grid-week td { padding: 6px 10px 6px 0; }
+
+/* Which box is which, said once per column instead of beside all eighty of them. */
+.d-keys {
+    display: block;
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-35);
+}
+
+.d-key {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin: 0 3px 0 0;
+    border-radius: 2px;
+}
+
+.d-key-site { margin-left: 8px; }
+.d-key-wish { background: var(--accent); }
+.d-key-site { background: var(--ink-35); }
+
+/* The flex row is a div inside the cell, never the cell itself: a td set to display:flex
+   drops out of the table formatting and the whole grid stacks into a single column. */
+.picks { display: flex; align-items: center; gap: 10px; }
+
+.pick {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+
+.pick:hover { background: var(--rule-soft); }
+.pick input { accent-color: var(--accent); }
+.pick-site input { accent-color: var(--ink-55); }
+
+/* The same choice on the schedule page, where it is one person picking their own week. */
+.pick-day {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13.5px;
+    cursor: pointer;
+}
+
+.pick-day small { color: var(--ink-55); font-size: 11px; }
+.pick-day.is-holiday { opacity: .55; }
+.pick-day.is-onsite span { color: var(--ink-55); }
+
+.key-site { background: transparent; box-shadow: inset 0 0 0 1px var(--rule); position: relative; }
+
+.key-site::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ink-35);
+}
+.pick-cell.is-holiday { opacity: .45; }
+
 @media (max-width: 760px) {
-    .users thead { display: none; }
-    .users tbody tr { display: grid; gap: 6px; padding: 12px 0; }
-    .users td { padding: 0; }
+    .users thead, .listing thead { display: none; }
+    .users tbody tr, .listing tbody tr { display: grid; gap: 6px; padding: 12px 0; }
+    .users td, .listing td { padding: 0; }
     .u-actions { justify-content: flex-start; }
 }

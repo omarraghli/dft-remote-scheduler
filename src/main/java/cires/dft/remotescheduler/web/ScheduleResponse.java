@@ -2,6 +2,7 @@ package cires.dft.remotescheduler.web;
 
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.WeekSchedule;
+import cires.dft.remotescheduler.service.HolidayCalendar;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,13 +20,15 @@ public record ScheduleResponse(
         Instant generatedAt,
         String generatedBy,
         int totalRemoteDays,
+        int remotesPerPerson,
         List<DayView> days,
         List<PersonRow> roster,
         Map<String, Integer> remoteDaysPerPerson
 ) {
 
-    /** One day of the week, with the people remote on it. */
-    public record DayView(int index, String name, int capacity, int count, List<String> people) {
+    /** One day of the week, with the people remote on it — and the holiday closing it, if any. */
+    public record DayView(int index, String name, String holiday,
+                          int capacity, int count, List<String> people) {
 
         /** How full the day is, 0-100, for the meter under each column heading. */
         public int fillPercent() {
@@ -56,9 +59,13 @@ public record ScheduleResponse(
      * Builds the view from the stored schedule, laying the days out from the current
      * configuration so a day nobody was assigned to still appears, empty, rather than vanishing.
      */
-    public static ScheduleResponse from(WeekSchedule schedule, RemoteScheduleProperties props) {
+    public static ScheduleResponse from(WeekSchedule schedule,
+                                        RemoteScheduleProperties props,
+                                        HolidayCalendar holidays) {
+
         Map<Integer, List<String>> peopleByDay = schedule.peopleByDayIndex();
         List<String> dayNames = props.getDays();
+        Map<Integer, String> holidayNames = holidays.namesByDayIndex(schedule.getWeekStart());
 
         List<DayView> days = new ArrayList<>(dayNames.size());
         List<Set<String>> remoteOnDay = new ArrayList<>(dayNames.size());
@@ -70,7 +77,8 @@ public record ScheduleResponse(
                     ? props.getSlotsPerDay().get(index)
                     : people.size();
 
-            days.add(new DayView(index, dayNames.get(index), capacity, people.size(), people));
+            days.add(new DayView(index, dayNames.get(index), holidayNames.get(index),
+                    capacity, people.size(), people));
             remoteOnDay.add(new HashSet<>(people));
             total += people.size();
         }
@@ -81,6 +89,7 @@ public record ScheduleResponse(
                 schedule.getGeneratedAt(),
                 schedule.getGeneratedBy(),
                 total,
+                holidays.remotesPerPerson(schedule.getWeekStart()),
                 days,
                 buildRoster(props, remoteOnDay),
                 schedule.remoteDaysPerPerson());

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/chrome :: head('Semaine')}"></head>
+<body>
+
+<header th:replace="~{fragments/chrome :: bar('week')}"></header>
+<div th:replace="~{fragments/chrome :: weekbar('/admin/week')}"></div>
+
+<main class="wrap">
+
+    <div class="notices">
+        <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+        <!-- The case this page exists for: the week was planned before the meeting came up. -->
+        <p class="note note-warn" th:if="${staleWeeks}">
+            Already planned with them remote on that day —
+            <span th:each="w, it : ${staleWeeks}">
+                <a th:href="@{/(week=${w})}" th:text="'week of ' + ${w}">week of 2026-09-21</a><span
+                    th:if="${!it.last}">, </span></span>.
+            Re-roll it, or the chart will show them remote on a day they are needed in the office.
+        </p>
+
+        <p class="note note-warn" th:if="${unplannable}">
+            This week has no schedule that fits as it stands —
+            <span th:text="${unplannable}">Not enough capacity</span>.
+            Free somebody up, or it will refuse to generate.
+        </p>
+    </div>
+
+    <section class="masthead">
+        <div class="masthead-left">
+            <span class="eyebrow">Semaine</span>
+            <h1 class="display" th:text="${weekNumber}">39</h1>
+        </div>
+
+        <div class="masthead-right">
+            <p class="provenance" th:if="${planned}">
+                already planned —
+                <a th:href="@{/(week=${shownWeek})}">re-roll it</a> for these to take effect
+            </p>
+            <p class="provenance" th:unless="${planned}">
+                not planned yet — these apply the moment it is
+            </p>
+        </div>
+    </section>
+
+    <table class="listing grid-week">
+        <thead>
+        <tr>
+            <th scope="col">Person</th>
+            <th scope="col" th:each="name, day : ${dayNames}"
+                th:classappend="${holidayNames.containsKey(day.index)} ? 'is-holiday' : ''">
+                <span th:text="${name}">Lundi</span>
+                <span class="d-holiday" th:if="${holidayNames.containsKey(day.index)}"
+                      th:text="${holidayNames[day.index]}">Marche Verte</span>
+                <!--/* Named once per column rather than beside all eighty boxes. */-->
+                <span class="d-keys">
+                    <i class="d-key d-key-wish"></i>remote
+                    <i class="d-key d-key-site"></i>bureau
+                </span>
+            </th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="p : ${rows}">
+            <th class="c-name" scope="row" th:text="${p.person}">Sara</th>
+
+            <td class="pick-cell" th:each="name, day : ${dayNames}"
+                th:classappend="${holidayNames.containsKey(day.index)} ? 'is-holiday' : ''">
+
+                <!--/* The flex row goes inside the cell, never on it — see .picks in app.css. */-->
+                <div class="picks">
+                    <label class="pick"
+                           th:title="${p.person} + ' — ' + ${name} + ' · would rather be remote'">
+                        <input type="checkbox" name="preferred" th:value="${day.index}"
+                               th:checked="${p.preferred.contains(day.index)}"
+                               th:attr="form='w-' + ${p.slug}">
+                        <span class="sr-only"
+                              th:text="${p.person} + ' prefers remote on ' + ${name}">remote</span>
+                    </label>
+
+                    <label class="pick pick-site"
+                           th:title="${p.person} + ' — ' + ${name} + ' · needed in the office'">
+                        <input type="checkbox" name="onSite" th:value="${day.index}"
+                               th:checked="${p.onSite.contains(day.index)}"
+                               th:attr="form='w-' + ${p.slug}">
+                        <span class="sr-only"
+                              th:text="${p.person} + ' on site on ' + ${name}">bureau</span>
+                    </label>
+                </div>
+            </td>
+
+            <td class="u-actions">
+                <form method="post" th:action="@{/admin/week}" th:id="'w-' + ${p.slug}"
+                      class="inline">
+                    <input type="hidden" name="week" th:value="${shownWeek}">
+                    <input type="hidden" name="person" th:value="${p.person}">
+                    <button type="submit" class="btn btn-quiet btn-sm">Save</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <section class="panel panel-quiet">
+        <h2 class="panel-title">What the two boxes do</h2>
+
+        <p class="panel-note"><b>remote</b> is a wish. The schedule grants as many as the week has
+            room for, and when more people want a day than it has slots, who gets it is down to
+            the draw. Nobody is worse off for asking.</p>
+
+        <p class="panel-note"><b>bureau</b> is a requirement, and the only one of the two that can
+            fail. Somebody held in the office on Lundi and Vendredi is left Mardi to Jeudi, which
+            is three days in a row and against the rules — that save is refused rather than left
+            to surface on the morning the week is due. A week with a férié in it runs out of room
+            one day sooner. Everyone gets
+            <b th:text="${remotesPerPerson}">3</b> remote days this week.</p>
+    </section>
+
+</main>
+
+<footer th:replace="~{fragments/chrome :: foot(false)}"></footer>
+
+<script th:replace="~{fragments/chrome :: theme-script}"></script>
+
+</body>
+</html>

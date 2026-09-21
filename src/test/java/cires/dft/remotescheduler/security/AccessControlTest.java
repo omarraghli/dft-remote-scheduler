@@ -77,9 +77,23 @@ class AccessControlTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    @DisplayName("an admin can reach account management and generate")
+    @DisplayName("a read-only user cannot reach holiday management")
+    void userCannotEditHolidays() throws Exception {
+        mvc.perform(get("/admin/holidays").with(user("reader@cires.ma").roles("USER")))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/admin/holidays").with(user("reader@cires.ma").roles("USER")).with(csrf())
+                        .param("name", "Invented").param("startDate", "2029-01-05"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("an admin can reach account and holiday management, and generate")
     void adminCanAdministerAndWrite() throws Exception {
         mvc.perform(get("/admin/users").with(user("admin@cires.ma").roles("ADMIN")))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/admin/holidays").with(user("admin@cires.ma").roles("ADMIN")))
                 .andExpect(status().isOk());
 
         mvc.perform(post("/generate").with(user("admin@cires.ma").roles("ADMIN")).with(csrf())
@@ -119,5 +133,37 @@ class AccessControlTest extends AbstractPostgresIntegrationTest {
 
         mvc.perform(post("/api/schedules/generate"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("a read-only user cannot reach the week grid, or hold anyone in the office")
+    void userCannotSetOnSiteDays() throws Exception {
+        mvc.perform(get("/admin/week").with(user("reader@cires.ma").roles("USER")))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/admin/week").with(user("reader@cires.ma").roles("USER")).with(csrf())
+                        .param("week", "2029-01-08")
+                        .param("person", "Sara")
+                        .param("onSite", "0"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("a read-only user can still say which days they would rather be remote")
+    void userCanSetTheirOwnPreferences() throws Exception {
+        mvc.perform(post("/preferences").with(user("reader@cires.ma").roles("USER")).with(csrf())
+                        .param("week", "2029-01-08")
+                        .param("preferred", "0"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    @DisplayName("a signed-out visitor cannot set preferences")
+    void anonymousCannotSetPreferences() throws Exception {
+        mvc.perform(post("/preferences").with(csrf())
+                        .param("week", "2029-01-08")
+                        .param("preferred", "0"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrlPattern("**/login"));
     }
 }

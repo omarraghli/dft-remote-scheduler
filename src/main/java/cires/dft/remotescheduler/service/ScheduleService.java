@@ -14,8 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,15 +40,21 @@ public class ScheduleService {
     private final ScheduleSolver solver;
     private final WeekScheduleRepository repository;
     private final RemoteScheduleProperties properties;
+    private final HolidayCalendar holidays;
+    private final WeekPlanService weekPlans;
     private final Clock clock;
 
     public ScheduleService(ScheduleSolver solver,
                            WeekScheduleRepository repository,
                            RemoteScheduleProperties properties,
+                           HolidayCalendar holidays,
+                           WeekPlanService weekPlans,
                            Clock clock) {
         this.solver = solver;
         this.repository = repository;
         this.properties = properties;
+        this.holidays = holidays;
+        this.weekPlans = weekPlans;
         this.clock = clock;
     }
 
@@ -71,7 +80,15 @@ public class ScheduleService {
             repository.flush();
         }
 
-        SolverResult result = solver.solve(toSolverInput());
+        List<PublicHoliday> publicHolidays = holidays.inWeek(monday);
+        if (!publicHolidays.isEmpty()) {
+            log.info("Week of {} has {} public holiday(s): {} — each person gets {} remote days",
+                    monday, publicHolidays.size(),
+                    publicHolidays.stream().map(PublicHoliday::name).toList(),
+                    holidays.remotesPerPerson(monday));
+        }
+
+        SolverResult result = solver.solve(toSolverInput(monday));
 
         WeekSchedule schedule = new WeekSchedule(monday, clock.instant(), generatedBy);
         List<String> dayNames = properties.getDays();
@@ -117,23 +134,128 @@ public class ScheduleService {
         return repository.findAllByOrderByWeekStartDesc();
     }
 
+    /**
+     * Weeks that already have a schedule putting people on one of these dates — what a holiday
+     * announced after the fact collides with. Those weeks need re-rolling: their assignments
+     * were made when the day was still a working one.
+     */
+    @Transactional(readOnly = true)
+    public List<LocalDate> plannedWeeksAssigningOn(Collection<LocalDate> dates) {
+        Set<LocalDate> weeks = new LinkedHashSet<>();
+
+        for (LocalDate date : dates) {
+            LocalDate monday = WeekStarts.of(date);
+            int dayIndex = (int) ChronoUnit.DAYS.between(monday, date);
+
+            repository.findByWeekStart(monday)
+                    .filter(s -> !s.peopleByDayIndex().getOrDefault(dayIndex, List.of()).isEmpty())
+                    .ifPresent(s -> weeks.add(monday));
+        }
+
+        return List.copyOf(weeks);
+    }
+
     public LocalDate today() {
         return LocalDate.now(clock);
     }
 
-    /** Translates the YAML configuration into the solver's input, resolving day names to indices. */
-    SolverInput toSolverInput() {
+    /**
+     * Sets what one person asked for and where they are required, for one week.
+     *
+     * <p>Held here rather than in {@link WeekPlanService} because it is the only place that can
+     * answer the question that matters: does the week still have an answer afterwards? Holding
+     * one person in the office on Lundi <em>and</em> Vendredi leaves them Mardi to Jeudi, which
+     * is three days in a row and against the rules — an ordinary request that quietly makes the
+     * week unplannable, so it is refused at the point somebody makes it rather than found on
+     * the morning the week is due.
+     *
+     * <p>A week that was already unplannable before the change is not blamed on it: whoever is
+     * ticking a box cannot do anything about a holiday announced last week.
+     *
+     * @throws WeekPlanException if the change is not acceptable, in which case nothing is stored
+     */
+    @Transactional
+    public void setWeekPlan(LocalDate week, String person, Set<Integer> preferred,
+                            Set<Integer> onSite, String setBy) {
+
+        LocalDate monday = WeekStarts.of(week);
+        boolean wasPlannable = unplannable(monday).isEmpty();
+
+        weekPlans.replace(monday, person, preferred, onSite, setBy);
+
+        if (wasPlannable) {
+            unplannable(monday).ifPresent(why -> {
+                throw new WeekPlanException(
+                        "That leaves the week of " + monday + " with no schedule at all — "
+                                + why + ".");
+            });
+        }
+    }
+
+    /** Why the week cannot be planned as things stand, or empty when it can. */
+    @Transactional(readOnly = true)
+    public Optional<String> unplannable(LocalDate week) {
+        try {
+            solver.solve(toSolverInput(WeekStarts.of(week)));
+            return Optional.empty();
+
+        } catch (NoFeasibleScheduleException e) {
+            return Optional.of(e.getMessage());
+        }
+    }
+
+    /**
+     * The planned week this change contradicts, if any: a stored schedule that has {@code person}
+     * remote on a day they are now held in the office. Those assignments were made before the
+     * meeting existed, so the week needs re-rolling — the same warning a late holiday gets, and
+     * never acted on automatically.
+     *
+     * <p>Deliberately narrower than {@link #plannedWeeksAssigningOn}: on any given day somebody
+     * is remote, so a warning that fired on that would fire every time and be ignored within a
+     * week.
+     */
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> plannedWeekContradicting(LocalDate week, String person,
+                                                        Set<Integer> onSite) {
+        if (onSite.isEmpty()) return Optional.empty();
+
+        LocalDate monday = WeekStarts.of(week);
+
+        return repository.findByWeekStart(monday)
+                .filter(schedule -> onSite.stream().anyMatch(dayIndex -> schedule
+                        .peopleByDayIndex().getOrDefault(dayIndex, List.of()).contains(person)))
+                .map(schedule -> monday);
+    }
+
+    /**
+     * Translates the YAML configuration into the solver's input, resolving day names to indices.
+     *
+     * <p>The week matters: public holidays are dates, so which days are off — and with them the
+     * quota, lowered by {@link HolidayCalendar} for a short week — depends on the week being
+     * planned. The weekday names in {@code remote.holidays} apply to every week and are added on
+     * top, without touching the quota. That week's {@link WeekPlan} arrives the same way: the
+     * on-site days join the blocked ones, the wishes stay wishes.
+     */
+    SolverInput toSolverInput(LocalDate week) {
         List<String> days = properties.getDays();
 
-        Set<Integer> holidays = new HashSet<>();
+        Set<Integer> closedDays = new HashSet<>(holidays.dayIndexes(week));
         for (String holiday : properties.getHolidays()) {
-            holidays.add(requireDayIndex(holiday, "remote.holidays"));
+            closedDays.add(requireDayIndex(holiday, "remote.holidays"));
         }
+
+        WeekPlan plan = weekPlans.forWeek(week);
 
         Map<String, Set<Integer>> forbiddenDays = new HashMap<>();
         for (Map.Entry<String, String> entry : properties.getVacationReturns().entrySet()) {
             int dayIndex = requireDayIndex(entry.getValue(), "remote.vacation-returns");
             forbiddenDays.computeIfAbsent(entry.getKey(), k -> new HashSet<>()).add(dayIndex);
+        }
+        // A day somebody is held in the office on is closed for them exactly as a holiday is
+        // closed for everyone, and adds to whatever else already blocks them that week.
+        for (Map.Entry<String, Set<Integer>> entry : plan.onSite().entrySet()) {
+            forbiddenDays.computeIfAbsent(entry.getKey(), k -> new HashSet<>())
+                    .addAll(entry.getValue());
         }
 
         int[] slotsPerDay = new int[properties.getSlotsPerDay().size()];
@@ -145,10 +267,11 @@ public class ScheduleService {
                 properties.getPeople(),
                 days,
                 slotsPerDay,
-                properties.getRemotesPerPerson(),
+                holidays.remotesPerPerson(week),
                 properties.getMaxConsecutiveDays(),
-                holidays,
-                forbiddenDays);
+                closedDays,
+                forbiddenDays,
+                plan.preferred());
     }
 
     private int requireDayIndex(String dayName, String propertyPath) {

@@ -1,41 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Accounts — Remote</title>
-    <meta name="color-scheme" content="light dark">
-    <script>
-        (function () {
-            try {
-                var t = localStorage.getItem('theme');
-                if (t === 'light' || t === 'dark') {
-                    document.documentElement.setAttribute('data-theme', t);
-                }
-            } catch (e) { /* fall back to the system theme */ }
-        })();
-    </script>
-    <link rel="stylesheet" th:href="@{/css/app.css}">
-</head>
+<head th:replace="~{fragments/chrome :: head('Accounts')}"></head>
 <body>
 
-<header class="bar">
-    <a class="mark" th:href="@{/}">
-        <span class="mark-name">Remote</span>
-        <span class="mark-rule" aria-hidden="true"></span>
-        <span class="mark-unit">DFT</span>
-    </a>
-
-    <nav class="crumbs">
-        <a th:href="@{/}">Schedule</a>
-        <span>/</span>
-        <b>Accounts</b>
-    </nav>
-
-    <div class="bar-meta">
-        <a class="btn btn-quiet btn-sm" th:href="@{/logout}">Sign out</a>
-    </div>
-</header>
+<header th:replace="~{fragments/chrome :: bar('users')}"></header>
 
 <main class="wrap">
 
@@ -157,11 +125,9 @@
 
 </main>
 
-<footer class="wrap foot">
-    <span>dft-remote-scheduler</span>
-    <span class="foot-sep">·</span>
-    <a th:href="@{/}">Schedule</a>
-</footer>
+<footer th:replace="~{fragments/chrome :: foot(false)}"></footer>
+
+<script th:replace="~{fragments/chrome :: theme-script}"></script>
 
 </body>
 </html>

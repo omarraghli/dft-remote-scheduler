@@ -1,0 +1,113 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-week-plan
+      author: o.raghli
+      comment: What people ask for and what an admin requires of them, one week at a time.
+               Two tables rather than one with a kind column, because a query that forgot to
+               filter on the kind would quietly turn a wish into a hard constraint, and that
+               is the one bug here nobody would notice until the week arrived.
+      changes:
+        - createTable:
+            tableName: remote_preference
+            remarks: A day somebody would rather be remote on. Granted if the week has room.
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_remote_preference
+                    nullable: false
+              - column:
+                  name: person_name
+                  type: VARCHAR(64)
+                  remarks: A name from remote.people, spelled as it is configured.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: week_start
+                  type: DATE
+                  remarks: The Monday the week starts on.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: day_index
+                  type: INTEGER
+                  remarks: Column on the chart, 0 for Lundi.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: remote_preference
+            columnNames: person_name, week_start, day_index
+            constraintName: uk_remote_preference_person_week_day
+
+        - createIndex:
+            tableName: remote_preference
+            indexName: idx_remote_preference_week
+            columns:
+              - column:
+                  name: week_start
+
+        - createTable:
+            tableName: on_site_day
+            remarks: A day somebody has to be in the office. Hard, like a public holiday, but
+                     for one person and one week.
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_on_site_day
+                    nullable: false
+              - column:
+                  name: person_name
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: week_start
+                  type: DATE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: day_index
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+              - column:
+                  name: set_by
+                  type: VARCHAR(190)
+                  remarks: The admin who asked for it, so "who put me in the office?" has an
+                           answer.
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: on_site_day
+            columnNames: person_name, week_start, day_index
+            constraintName: uk_on_site_day_person_week_day
+
+        - createIndex:
+            tableName: on_site_day
+            indexName: idx_on_site_day_week
+            columns:
+              - column:
+                  name: week_start
+
+      rollback:
+        - dropTable:
+            tableName: remote_preference
+        - dropTable:
+            tableName: on_site_day
