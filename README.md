@@ -109,7 +109,9 @@ that marks your own row on the chart, and an admin sets it at `/admin/users`.
 
 **Admins can require days.** A comité, a client on site, an onboarding — **`/admin/week`** is one
 grid, the roster down the side and the week across the top, where an admin ticks who has to be in
-the office when, and can tick wishes on behalf of anyone without an account. The office box is
+the office when, and can tick wishes on behalf of anyone without an account. One **Save** covers
+the whole grid, because pinning three people for one meeting is one decision; nothing is stored
+until it is pressed, and a box left unticked is a box cleared. The office box is
 **hard**: nobody is given a remote day they are needed in the office on, exactly as though it
 were a public holiday for them alone. The chart marks those cells with a dot, so a row that looks
 short has a visible reason.
@@ -150,7 +152,7 @@ logging:
 ```
 
 ```bash
-./gradlew test    # 112 tests
+./gradlew test    # 113 tests
 ./gradlew build   # compile, test, package
 ```
 
@@ -449,7 +451,7 @@ Three things worth knowing about GitHub's scheduler:
 
 ## Tests
 
-`./gradlew test` runs 112 tests. The 43 solver, `WeekStarts` and `HolidayCalendar` tests are plain
+`./gradlew test` runs 113 tests. The 43 solver, `WeekStarts` and `HolidayCalendar` tests are plain
 unit tests with no Spring context. The rest extend `AbstractPostgresIntegrationTest`, which starts a throwaway
 **PostgreSQL 16 in Testcontainers** with Liquibase enabled and `ddl-auto=validate` — so every run
 checks the changelog and the entities still agree. Docker must be running.

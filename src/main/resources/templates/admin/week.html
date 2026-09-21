@@ -13,12 +13,14 @@
         <p class="note note-err" th:if="${error}" th:text="${error}"></p>
 
         <!-- The case this page exists for: the week was planned before the meeting came up. -->
-        <p class="note note-warn" th:if="${staleWeeks}">
-            Already planned with them remote on that day —
-            <span th:each="w, it : ${staleWeeks}">
-                <a th:href="@{/(week=${w})}" th:text="'week of ' + ${w}">week of 2026-09-21</a><span
-                    th:if="${!it.last}">, </span></span>.
-            Re-roll it, or the chart will show them remote on a day they are needed in the office.
+        <p class="note note-warn" th:if="${staleWeek}">
+            <span th:each="p, it : ${stalePeople}"><b th:text="${p}">Sara</b><span
+                    th:if="${!it.last}">, </span></span>
+            <span th:text="${#lists.size(stalePeople) > 1} ? ' are ' : ' is '"> is </span>
+            already planned remote on a day they are now needed in the office —
+            <a th:href="@{/(week=${staleWeek})}"
+               th:text="'week of ' + ${staleWeek}">week of 2026-09-21</a>.
+            Re-roll it, or the chart will keep showing them remote.
         </p>
 
         <p class="note note-warn" th:if="${unplannable}">
@@ -45,6 +47,9 @@
         </div>
     </section>
 
+    <form method="post" th:action="@{/admin/week}">
+    <input type="hidden" name="week" th:value="${shownWeek}">
+
     <table class="listing grid-week">
         <thead>
         <tr>
@@ -60,7 +65,6 @@
                     <i class="d-key d-key-site"></i>bureau
                 </span>
             </th>
-            <th scope="col"><span class="sr-only">Actions</span></th>
         </tr>
         </thead>
         <tbody>
@@ -74,35 +78,33 @@
                 <div class="picks">
                     <label class="pick"
                            th:title="${p.person} + ' — ' + ${name} + ' · would rather be remote'">
-                        <input type="checkbox" name="preferred" th:value="${day.index}"
-                               th:checked="${p.preferred.contains(day.index)}"
-                               th:attr="form='w-' + ${p.slug}">
+                        <input type="checkbox" name="preferred"
+                               th:value="${p.person} + '|' + ${day.index}"
+                               th:checked="${p.preferred.contains(day.index)}">
                         <span class="sr-only"
                               th:text="${p.person} + ' prefers remote on ' + ${name}">remote</span>
                     </label>
 
                     <label class="pick pick-site"
                            th:title="${p.person} + ' — ' + ${name} + ' · needed in the office'">
-                        <input type="checkbox" name="onSite" th:value="${day.index}"
-                               th:checked="${p.onSite.contains(day.index)}"
-                               th:attr="form='w-' + ${p.slug}">
+                        <input type="checkbox" name="onSite"
+                               th:value="${p.person} + '|' + ${day.index}"
+                               th:checked="${p.onSite.contains(day.index)}">
                         <span class="sr-only"
                               th:text="${p.person} + ' on site on ' + ${name}">bureau</span>
                     </label>
                 </div>
             </td>
-
-            <td class="u-actions">
-                <form method="post" th:action="@{/admin/week}" th:id="'w-' + ${p.slug}"
-                      class="inline">
-                    <input type="hidden" name="week" th:value="${shownWeek}">
-                    <input type="hidden" name="person" th:value="${p.person}">
-                    <button type="submit" class="btn btn-quiet btn-sm">Save</button>
-                </form>
-            </td>
         </tr>
         </tbody>
     </table>
+
+    <!-- One Save for the whole grid: pinning three people for one meeting is one decision. -->
+    <div class="grid-save">
+        <button type="submit" class="btn btn-primary">Save the week</button>
+        <span class="grid-save-note">Nothing is stored until you save.</span>
+    </div>
+    </form>
 
     <section class="panel panel-quiet">
         <h2 class="panel-title">What the two boxes do</h2>

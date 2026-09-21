@@ -194,7 +194,8 @@
     </section>
 
     <!-- ── Mes jours souhaités ──────────────────────────────────────────── -->
-    <section class="wrap panel" th:if="${canSetPreferences}">
+    <section class="wrap" th:if="${canSetPreferences}">
+      <div class="panel">
         <h2 class="panel-title">Mes jours souhaités</h2>
 
         <form method="post" th:action="@{/preferences}" class="row-form">
@@ -221,6 +222,7 @@
 
         <p class="panel-note" th:if="${schedule != null}">This week is already planned, so what
             you tick counts the next time an admin re-rolls it.</p>
+      </div>
     </section>
 
 </main>

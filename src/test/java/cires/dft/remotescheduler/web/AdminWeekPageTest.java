@@ -44,16 +44,15 @@ class AdminWeekPageTest extends AbstractPostgresIntegrationTest {
         try {
             mvc.perform(post("/admin/week").with(admin()).with(csrf())
                             .param("week", week.toString())
-                            .param("person", "Sara")
-                            .param("onSite", "2"))
+                            .param("onSite", "Sara|2"))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(flash().attribute("message", "Saved for Sara."));
+                    .andExpect(flash().attribute("message", "Saved."));
 
             assertThat(weekPlans.forWeek(week).onSiteFor("Sara")).containsExactly(2);
 
             mvc.perform(get("/admin/week").param("week", week.toString()).with(admin()))
                     .andExpect(status().isOk())
-                    .andExpect(content().string(containsString("bureau")));
+                    .andExpect(content().string(containsString("value=\"Sara|2\" checked")));
 
             schedules.generate(week, true, "test");
 
@@ -74,10 +73,9 @@ class AdminWeekPageTest extends AbstractPostgresIntegrationTest {
         try {
             mvc.perform(post("/admin/week").with(admin()).with(csrf())
                             .param("week", week.toString())
-                            .param("person", "Omar")
-                            .param("preferred", "0")
-                            .param("preferred", "3"))
-                    .andExpect(flash().attribute("message", "Saved for Omar."));
+                            .param("preferred", "Omar|0")
+                            .param("preferred", "Omar|3"))
+                    .andExpect(flash().attribute("message", "Saved."));
 
             assertThat(weekPlans.forWeek(week).preferredFor("Omar")).containsExactly(0, 3);
 
@@ -102,9 +100,9 @@ class AdminWeekPageTest extends AbstractPostgresIntegrationTest {
 
             mvc.perform(post("/admin/week").with(admin()).with(csrf())
                             .param("week", week.toString())
-                            .param("person", "Adam")
-                            .param("onSite", String.valueOf(taken)))
-                    .andExpect(flash().attribute("staleWeeks", hasItem(week)));
+                            .param("onSite", "Adam|" + taken))
+                    .andExpect(flash().attribute("staleWeek", week))
+                    .andExpect(flash().attribute("stalePeople", hasItem("Adam")));
 
         } finally {
             clear(week, "Adam");
@@ -122,8 +120,7 @@ class AdminWeekPageTest extends AbstractPostgresIntegrationTest {
 
             mvc.perform(post("/admin/week").with(admin()).with(csrf())
                             .param("week", week.toString())
-                            .param("person", "Ayoub")
-                            .param("onSite", String.valueOf(free)))
+                            .param("onSite", "Ayoub|" + free))
                     .andExpect(flash().attributeExists("message"))
                     .andExpect(flash().attributeCount(1));
 
@@ -139,9 +136,8 @@ class AdminWeekPageTest extends AbstractPostgresIntegrationTest {
 
         mvc.perform(post("/admin/week").with(admin()).with(csrf())
                         .param("week", week.toString())
-                        .param("person", "Nassim")
-                        .param("onSite", "0")
-                        .param("onSite", "4"))
+                        .param("onSite", "Nassim|0")
+                        .param("onSite", "Nassim|4"))
                 .andExpect(flash().attribute("error", containsString("Nassim")));
 
         assertThat(weekPlans.forWeek(week).onSiteFor("Nassim")).isEmpty();
@@ -171,5 +167,37 @@ class AdminWeekPageTest extends AbstractPostgresIntegrationTest {
 
     private static RequestPostProcessor admin() {
         return user("admin@cires.ma").roles("ADMIN");
+    }
+
+    @Test
+    @DisplayName("one Save covers the whole grid, and a box left unticked clears what it held")
+    void oneSaveCoversTheWholeGrid() throws Exception {
+        LocalDate week = LocalDate.of(2030, 6, 10);
+
+        try {
+            mvc.perform(post("/admin/week").with(admin()).with(csrf())
+                            .param("week", week.toString())
+                            .param("preferred", "Sara|0")
+                            .param("onSite", "Omar|3")
+                            .param("onSite", "Hamza|1"))
+                    .andExpect(flash().attribute("message", "Saved."));
+
+            var saved = weekPlans.forWeek(week);
+            assertThat(saved.preferredFor("Sara")).containsExactly(0);
+            assertThat(saved.onSiteFor("Omar")).containsExactly(3);
+            assertThat(saved.onSiteFor("Hamza")).containsExactly(1);
+
+            // The same grid saved with nothing ticked is the week emptied, not the week unchanged.
+            mvc.perform(post("/admin/week").with(admin()).with(csrf())
+                            .param("week", week.toString()))
+                    .andExpect(flash().attribute("message", "Saved."));
+
+            assertThat(weekPlans.forWeek(week).preferred()).isEmpty();
+            assertThat(weekPlans.forWeek(week).onSite()).isEmpty();
+
+        } finally {
+            mvc.perform(post("/admin/week").with(admin()).with(csrf())
+                    .param("week", week.toString()));
+        }
     }
 }

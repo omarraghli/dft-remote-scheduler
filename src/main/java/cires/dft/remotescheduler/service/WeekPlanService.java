@@ -12,7 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,45 +80,78 @@ public class WeekPlanService {
     public void replace(LocalDate week, String person, Set<Integer> preferred,
                         Set<Integer> onSite, String setBy) {
 
+        replace(week, List.of(person),
+                new WeekPlan(Map.of(person, preferred), Map.of(person, onSite)), setBy);
+    }
+
+    /**
+     * The same for several people at once, which is what one Save over a whole grid means: every
+     * person named is replaced by what the plan holds for them, and somebody the plan says
+     * nothing about has their week cleared — an unticked box has to mean something.
+     *
+     * @throws WeekPlanException if any of it is not something to accept, in which case none of
+     *                           it is written
+     */
+    @Transactional
+    public void replace(LocalDate week, Collection<String> people, WeekPlan plan, String setBy) {
         LocalDate monday = WeekStarts.of(week);
-        String rosterName = requireRosterName(person);
 
         if (monday.isBefore(WeekStarts.of(LocalDate.now(clock)))) {
             throw new WeekPlanException("The week of " + monday + " is over.");
         }
 
-        Set<Integer> wanted = requireDays(preferred);
-        Set<Integer> required = requireDays(onSite);
+        // Everything is checked before anything is written, so a bad name at the bottom of the
+        // grid does not leave the rows above it half changed.
+        Map<String, Set<Integer>> wanted = new LinkedHashMap<>();
+        Map<String, Set<Integer>> required = new LinkedHashMap<>();
+
+        for (String person : people) {
+            String rosterName = requireRosterName(person);
+            wanted.put(rosterName, requireDays(plan.preferredFor(person)));
+            required.put(rosterName, requireDays(plan.onSiteFor(person)));
+        }
 
         // Who asked for a day in the office is worth keeping, so a day that was already there
         // holds on to the admin who set it rather than being re-attributed to whoever saved the
-        // row next — which, on the schedule page, is the person the pin is about.
-        Map<Integer, String> setPreviouslyBy = new HashMap<>();
+        // grid next — which, on the schedule page, is the person the pin is about.
+        Map<String, Map<Integer, String>> setPreviouslyBy = new HashMap<>();
         for (OnSiteDay day : onSiteDays.findByWeekStart(monday)) {
-            if (day.getPersonName().equals(rosterName)) {
-                setPreviouslyBy.put(day.getDayIndex(), day.getSetBy());
-            }
+            setPreviouslyBy.computeIfAbsent(day.getPersonName(), k -> new HashMap<>())
+                    .put(day.getDayIndex(), day.getSetBy());
         }
 
-        preferences.deleteByWeekStartAndPersonName(monday, rosterName);
-        onSiteDays.deleteByWeekStartAndPersonName(monday, rosterName);
+        for (String rosterName : wanted.keySet()) {
+            preferences.deleteByWeekStartAndPersonName(monday, rosterName);
+            onSiteDays.deleteByWeekStartAndPersonName(monday, rosterName);
+        }
         preferences.flush();
         onSiteDays.flush();
 
-        for (int dayIndex : wanted) {
-            preferences.save(new RemotePreference(rosterName, monday, dayIndex, clock.instant()));
+        for (Map.Entry<String, Set<Integer>> entry : wanted.entrySet()) {
+            for (int dayIndex : entry.getValue()) {
+                preferences.save(new RemotePreference(
+                        entry.getKey(), monday, dayIndex, clock.instant()));
+            }
         }
-        for (int dayIndex : required) {
-            onSiteDays.save(new OnSiteDay(rosterName, monday, dayIndex,
-                    setPreviouslyBy.getOrDefault(dayIndex, setBy), clock.instant()));
+
+        for (Map.Entry<String, Set<Integer>> entry : required.entrySet()) {
+            Map<Integer, String> before =
+                    setPreviouslyBy.getOrDefault(entry.getKey(), Map.of());
+
+            for (int dayIndex : entry.getValue()) {
+                onSiteDays.save(new OnSiteDay(entry.getKey(), monday, dayIndex,
+                        before.getOrDefault(dayIndex, setBy), clock.instant()));
+            }
         }
 
         // Flushed here so the feasibility check ScheduleService runs next sees these rows.
         preferences.flush();
         onSiteDays.flush();
 
-        log.info("Week of {}: {} wants {} and is on site {}",
-                monday, rosterName, names(wanted), names(required));
+        for (String rosterName : wanted.keySet()) {
+            log.info("Week of {}: {} wants {} and is on site {}", monday, rosterName,
+                    names(wanted.get(rosterName)), names(required.get(rosterName)));
+        }
     }
 
     /** Matches the given name against the configured roster, case-insensitively. */

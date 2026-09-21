@@ -178,10 +178,24 @@ public class ScheduleService {
     public void setWeekPlan(LocalDate week, String person, Set<Integer> preferred,
                             Set<Integer> onSite, String setBy) {
 
+        setWeekPlan(week, List.of(person),
+                new WeekPlan(Map.of(person, preferred), Map.of(person, onSite)), setBy);
+    }
+
+    /**
+     * The same for a whole grid saved at once. The week is checked once either side of the
+     * write rather than once per person, so sixteen rows cost the same two trial solves as one.
+     *
+     * @throws WeekPlanException if the change is not acceptable, in which case nothing is stored
+     */
+    @Transactional
+    public void setWeekPlan(LocalDate week, Collection<String> people, WeekPlan plan,
+                            String setBy) {
+
         LocalDate monday = WeekStarts.of(week);
         boolean wasPlannable = unplannable(monday).isEmpty();
 
-        weekPlans.replace(monday, person, preferred, onSite, setBy);
+        weekPlans.replace(monday, people, plan, setBy);
 
         if (wasPlannable) {
             unplannable(monday).ifPresent(why -> {
@@ -217,14 +231,27 @@ public class ScheduleService {
     @Transactional(readOnly = true)
     public Optional<LocalDate> plannedWeekContradicting(LocalDate week, String person,
                                                         Set<Integer> onSite) {
-        if (onSite.isEmpty()) return Optional.empty();
+        return peopleContradictingPlannedWeek(week, Map.of(person, onSite)).isEmpty()
+                ? Optional.empty()
+                : Optional.of(WeekStarts.of(week));
+    }
 
-        LocalDate monday = WeekStarts.of(week);
+    /** The same over a whole grid: everybody the stored schedule now disagrees with, by name. */
+    @Transactional(readOnly = true)
+    public List<String> peopleContradictingPlannedWeek(LocalDate week,
+                                                       Map<String, Set<Integer>> onSite) {
 
-        return repository.findByWeekStart(monday)
-                .filter(schedule -> onSite.stream().anyMatch(dayIndex -> schedule
-                        .peopleByDayIndex().getOrDefault(dayIndex, List.of()).contains(person)))
-                .map(schedule -> monday);
+        Optional<WeekSchedule> schedule = repository.findByWeekStart(WeekStarts.of(week));
+        if (schedule.isEmpty()) return List.of();
+
+        Map<Integer, List<String>> byDay = schedule.get().peopleByDayIndex();
+
+        return onSite.entrySet().stream()
+                .filter(entry -> entry.getValue().stream().anyMatch(dayIndex -> byDay
+                        .getOrDefault(dayIndex, List.of()).contains(entry.getKey())))
+                .map(Map.Entry::getKey)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
     }
 
     /**

@@ -20,9 +20,11 @@ import java.security.Principal;
 import java.time.LocalDate;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The grid where an admin says who is needed in the office, and edits what people asked for on
@@ -50,13 +52,29 @@ public class AdminWeekController {
         this.holidays = holidays;
     }
 
+    /** One roster person as the grid prints them. */
+    public record PersonRow(String person, Set<Integer> preferred, Set<Integer> onSite) {
+    }
+
     /**
-     * One roster person as the grid prints them.
-     *
-     * @param slug a form id safe to put in HTML, since roster names are free text
+     * A ticked box, as the grid submits it: {@code Sara|2}. The whole grid is one form and one
+     * Save, so each box has to say who and which day it belongs to — the checkbox name alone
+     * cannot, and a form per row meant sixteen Save buttons for one decision.
      */
-    public record PersonRow(String person, String slug, Set<Integer> preferred,
-                            Set<Integer> onSite) {
+    private record Tick(String person, int dayIndex) {
+
+        static Tick parse(String value) {
+            int split = value.lastIndexOf('|');
+            if (split < 1) throw new IllegalArgumentException("Malformed selection: " + value);
+
+            try {
+                return new Tick(value.substring(0, split),
+                        Integer.parseInt(value.substring(split + 1)));
+
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Malformed selection: " + value);
+            }
+        }
     }
 
     @GetMapping
@@ -71,8 +89,7 @@ public class AdminWeekController {
         for (String person : properties.getPeople().stream()
                 .sorted(String.CASE_INSENSITIVE_ORDER).toList()) {
 
-            rows.add(new PersonRow(person, slug(person),
-                    plan.preferredFor(person), plan.onSiteFor(person)));
+            rows.add(new PersonRow(person, plan.preferredFor(person), plan.onSiteFor(person)));
         }
 
         model.addAttribute("rows", rows);
@@ -91,25 +108,34 @@ public class AdminWeekController {
         return "admin/week";
     }
 
+    /**
+     * The whole grid, saved in one go. Every roster person is replaced by what came back, so a
+     * box somebody unticked clears rather than lingering because its row was not submitted.
+     */
     @PostMapping
     public String save(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
-                       @RequestParam String person,
-                       @RequestParam(required = false) Set<Integer> preferred,
-                       @RequestParam(required = false) Set<Integer> onSite,
+                       @RequestParam(required = false) List<String> preferred,
+                       @RequestParam(required = false) List<String> onSite,
                        Principal principal,
                        RedirectAttributes redirect) {
 
         LocalDate target = WeekStarts.of(week);
-        Set<Integer> wanted = preferred == null ? Set.of() : preferred;
-        Set<Integer> required = onSite == null ? Set.of() : onSite;
 
         try {
-            scheduleService.setWeekPlan(target, person, wanted, required,
+            Map<String, Set<Integer>> wanted = byPerson(preferred);
+            Map<String, Set<Integer>> required = byPerson(onSite);
+
+            scheduleService.setWeekPlan(target, properties.getPeople(),
+                    new WeekPlan(wanted, required),
                     principal == null ? null : principal.getName());
 
-            redirect.addFlashAttribute("message", "Saved for " + person + ".");
-            scheduleService.plannedWeekContradicting(target, person, required)
-                    .ifPresent(stale -> redirect.addFlashAttribute("staleWeeks", List.of(stale)));
+            redirect.addFlashAttribute("message", "Saved.");
+
+            List<String> stale = scheduleService.peopleContradictingPlannedWeek(target, required);
+            if (!stale.isEmpty()) {
+                redirect.addFlashAttribute("staleWeek", target);
+                redirect.addFlashAttribute("stalePeople", stale);
+            }
 
         } catch (WeekPlanException | IllegalArgumentException e) {
             redirect.addFlashAttribute("error", e.getMessage());
@@ -119,7 +145,16 @@ public class AdminWeekController {
         return "redirect:/admin/week";
     }
 
-    private String slug(String person) {
-        return person.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    /** Folds the ticked boxes back into the day indices each person holds. */
+    private Map<String, Set<Integer>> byPerson(List<String> ticks) {
+        Map<String, Set<Integer>> byPerson = new HashMap<>();
+        if (ticks == null) return byPerson;
+
+        for (String tick : ticks) {
+            Tick parsed = Tick.parse(tick);
+            byPerson.computeIfAbsent(parsed.person(), k -> new TreeSet<>()).add(parsed.dayIndex());
+        }
+
+        return byPerson;
     }
 }
