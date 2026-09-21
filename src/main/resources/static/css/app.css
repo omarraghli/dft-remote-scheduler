@@ -843,7 +843,12 @@ body.centred {
 
 .field { display: flex; flex-direction: column; gap: 5px; }
 
+/* The hint rides on the label line rather than under the input: a field one line taller
+   than its neighbours drags them out of alignment, whichever end the row is aligned to. */
 .field > span {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
     font-size: 10.5px;
     font-weight: 600;
     letter-spacing: .08em;
@@ -851,7 +856,14 @@ body.centred {
     color: var(--ink-35);
 }
 
-.field small { font-size: 11.5px; color: var(--ink-35); }
+.field small {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ink-35);
+    opacity: .85;
+}
 
 .field input, .field select, select {
     padding: 9px 11px;
@@ -989,7 +1001,7 @@ body.centred {
 
 /* Every row is an edit form: the fields sit in the cells and post to the form in the
    last one, so a correction is typed where it is read. */
-.listing input { width: 100%; }
+.listing input, .listing select { width: 100%; }
 .listing .n-days { width: 68px; }
 
 .h-when {
