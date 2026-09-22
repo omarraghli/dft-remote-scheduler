@@ -13,6 +13,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${title} + ' — Remote'">Remote</title>
     <meta name="color-scheme" content="light dark">
+    <meta name="author" content="Omar Raghli">
     <script>
         // Runs before the stylesheet paints, so a stored theme never flashes the other one.
         (function () {
@@ -57,10 +58,10 @@
            th:href="${shownWeek != null}
                     ? @{/admin/week(week=${shownWeek})} : @{/admin/week}">Semaine</a>
 
-        <a class="nav-link" sec:authorize="hasRole('ADMIN')"
-           th:classappend="${active == 'vacations'} ? 'is-on' : ''"
-           th:attr="aria-current=${active == 'vacations'} ? 'page' : null"
-           th:href="@{/admin/vacations}">Congés</a>
+        <a class="nav-link"
+           th:classappend="${active == 'leave'} ? 'is-on' : ''"
+           th:attr="aria-current=${active == 'leave'} ? 'page' : null"
+           th:href="@{/leave}">Congés</a>
 
         <a class="nav-link" sec:authorize="hasRole('ADMIN')"
            th:classappend="${active == 'holidays'} ? 'is-on' : ''"
@@ -70,7 +71,7 @@
         <a class="nav-link" sec:authorize="hasRole('ADMIN')"
            th:classappend="${active == 'users'} ? 'is-on' : ''"
            th:attr="aria-current=${active == 'users'} ? 'page' : null"
-           th:href="@{/admin/users}">Accounts</a>
+           th:href="@{/admin/users}">Équipe</a>
     </nav>
 
     <div class="bar-right">
@@ -87,7 +88,12 @@
 
             <button type="button" class="theme-opt" data-theme-set="system"
                     role="radio" aria-checked="false" title="Match the system">
-                Auto<span class="sr-only"> — match the system</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="12" rx="2"/>
+                    <path d="M8 20h8M12 16v4"/>
+                </svg>
+                <span class="sr-only">Match the system</span>
             </button>
 
             <button type="button" class="theme-opt" data-theme-set="dark"
@@ -143,12 +149,18 @@
 </div>
 
 <footer class="wrap foot" th:fragment="foot(hint)">
-    <span>dft-remote-scheduler</span>
-    <span class="foot-sep">·</span>
-    <a th:href="@{/api/schedules}">API</a>
-    <span th:if="${hint}" class="foot-sep">·</span>
     <span th:if="${hint}" class="kbd-hint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> to change week</span>
+    <span th:replace="~{fragments/chrome :: signature}"></span>
 </footer>
+
+<!--
+  The maker's mark. One fragment, worn by the footer of every signed-in page and by the gate
+  pages, so it reads the same wherever you land.
+-->
+<span class="signature" th:fragment="signature">
+    Crafted with <span class="heart" role="img" aria-label="love">&hearts;</span> by
+    <span class="signature-name" title="Omar Raghli · 2026">Omar Raghli</span>
+</span>
 
 <script th:fragment="theme-script">
     // Light / System / Dark. "System" simply removes the override.
@@ -189,6 +201,14 @@
         });
 
         apply(stored());
+    })();
+
+    (function () {
+        if (window.__signed) return;
+        window.__signed = true;
+        console.log('%c Remote %c crafted with \u2665 by Omar Raghli ',
+            'background:#4b3fd4;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:600',
+            'background:#14161c;color:#e6e8ef;padding:3px 6px;border-radius:0 3px 3px 0');
     })();
 </script>
 

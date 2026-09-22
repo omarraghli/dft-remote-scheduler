@@ -21,6 +21,7 @@ public class AppUserDetailsService implements UserDetailsService {
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         AppUser user = users.findByEmail(AppUser.normaliseEmail(email))
+                .filter(AppUser::hasJoined)
                 // Deliberately vague: whether an address has an account is not something an
                 // unauthenticated caller should be able to probe.
                 .orElseThrow(() -> new UsernameNotFoundException("Bad credentials"));

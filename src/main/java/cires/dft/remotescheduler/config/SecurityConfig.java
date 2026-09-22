@@ -62,7 +62,8 @@ public class SecurityConfig {
     public SecurityFilterChain pageChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/login", "/css/**", "/favicon.ico", "/error").permitAll()
+                    .requestMatchers("/login", "/join/**", "/css/**", "/favicon.ico", "/error")
+                            .permitAll()
                     .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
                     .requestMatchers(HttpMethod.POST, "/generate").hasRole(Role.ADMIN.name())
                     .anyRequest().authenticated())

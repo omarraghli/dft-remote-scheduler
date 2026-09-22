@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/chrome :: head('Join')}"></head>
+<body class="centred">
+
+<main class="gate">
+    <div class="gate-mark">
+        <span class="mark-name">Remote</span>
+        <span class="mark-rule" aria-hidden="true"></span>
+        <span class="mark-unit">DFT</span>
+    </div>
+
+    <th:block th:if="${invalid}">
+        <h1 class="gate-title">Link expired</h1>
+        <p class="note note-err" th:text="${invalid}">This join link has expired.</p>
+        <p class="gate-foot"><a th:href="@{/login}">Already have an account? Sign in</a></p>
+    </th:block>
+
+    <th:block th:unless="${invalid}">
+        <h1 class="gate-title">Join the team</h1>
+        <p class="gate-lead">Pick your name, choose a password, and you are in. Your remote days
+            and your leave are planned under the name you pick.</p>
+
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+        <form method="post" th:action="@{/join/{t}(t=${token})}" class="stack">
+            <label class="field">
+                <span>Who are you?</span>
+                <select name="rosterName" id="join-name" required>
+                    <option value="" disabled th:selected="${rosterName == null}">Pick your name</option>
+                    <option th:each="n : ${names}" th:value="${n}" th:text="${n}"
+                            th:selected="${n == rosterName}">Sara</option>
+                    <option th:value="${newOption}" th:selected="${rosterName == newOption}">I'm new — not on the list</option>
+                </select>
+            </label>
+
+            <label class="field" id="join-new" th:hidden="${rosterName != newOption}">
+                <span>Your name <small>as the team calls you</small></span>
+                <input type="text" name="newName" maxlength="64" th:value="${newName}"
+                       placeholder="Yasmine">
+            </label>
+
+            <label class="field">
+                <span>Email</span>
+                <input type="email" name="email" autocomplete="username" required
+                       th:value="${email}"
+                       th:placeholder="${domain != ''} ? 'prenom.nom@' + ${domain} : 'you@example.com'">
+            </label>
+
+            <label class="field">
+                <span>Password <small>at least 10 characters</small></span>
+                <input type="password" name="password" autocomplete="new-password"
+                       minlength="10" required>
+            </label>
+
+            <label class="field">
+                <span>Password again</span>
+                <input type="password" name="confirmPassword" autocomplete="new-password"
+                       minlength="10" required>
+            </label>
+
+            <button type="submit" class="btn btn-primary btn-block">Join</button>
+        </form>
+
+        <p class="gate-foot"><a th:href="@{/login}">Already have an account? Sign in</a></p>
+    </th:block>
+
+    <p th:replace="~{fragments/chrome :: signature}"></p>
+</main>
+
+<script>
+    (function () {
+        var select = document.getElementById('join-name');
+        var typed = document.getElementById('join-new');
+        if (!select || !typed) return;
+
+        function sync() {
+            var isNew = select.value === '__new__';
+            typed.hidden = !isNew;
+            typed.querySelector('input').required = isNew;
+        }
+
+        select.addEventListener('change', sync);
+        sync();
+    })();
+</script>
+
+</body>
+</html>

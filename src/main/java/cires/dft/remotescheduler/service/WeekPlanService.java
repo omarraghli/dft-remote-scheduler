@@ -38,15 +38,18 @@ public class WeekPlanService {
     private final RemotePreferenceRepository preferences;
     private final OnSiteDayRepository onSiteDays;
     private final RemoteScheduleProperties properties;
+    private final RosterService people;
     private final Clock clock;
 
     public WeekPlanService(RemotePreferenceRepository preferences,
                            OnSiteDayRepository onSiteDays,
                            RemoteScheduleProperties properties,
+                           RosterService people,
                            Clock clock) {
         this.preferences = preferences;
         this.onSiteDays = onSiteDays;
         this.properties = properties;
+        this.people = people;
         this.clock = clock;
     }
 
@@ -154,15 +157,12 @@ public class WeekPlanService {
         }
     }
 
-    /** Matches the given name against the configured roster, case-insensitively. */
     private String requireRosterName(String person) {
         if (person == null || person.isBlank()) {
             throw new WeekPlanException("There is nobody to set days for.");
         }
 
-        return properties.getPeople().stream()
-                .filter(name -> name.equalsIgnoreCase(person.trim()))
-                .findFirst()
+        return people.activeName(person)
                 .orElseThrow(() -> new WeekPlanException(
                         "\"" + person + "\" is not on the roster."));
     }

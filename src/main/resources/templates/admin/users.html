@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/chrome :: head('Accounts')}"></head>
+<head th:replace="~{fragments/chrome :: head('Équipe')}"></head>
 <body>
 
 <header th:replace="~{fragments/chrome :: bar('users')}"></header>
@@ -10,6 +10,14 @@
     <div class="notices">
         <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
         <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+        <!-- Every normal week is infeasible past this point, so it is said on the page that
+             causes it rather than discovered on the day the week is due. -->
+        <p class="note note-warn" th:if="${needed > slots}">
+            <b th:text="${plannedCount} + ' people × ' + ${quota} + ' days = ' + ${needed}">51</b>
+            remote days, but the week only has <b th:text="${slots}">50</b> slots. No week can be
+            planned until someone comes off the schedule or remote.slots-per-day is raised.
+        </p>
     </div>
 
     <!-- Shown once, right after issuing. There is no way to see it again. -->
@@ -21,23 +29,82 @@
             They will be asked to replace it as soon as they sign in.</p>
     </section>
 
+    <!-- Shown once, right after issuing. Only a hash is stored. -->
+    <section class="secret" th:if="${inviteLink}">
+        <p class="secret-label">Join link — post it in the team chat</p>
+        <p class="secret-value secret-link num" id="invite-link" th:text="${inviteLink}">https://…/join/…</p>
+        <p class="secret-note">
+            <button type="button" class="btn btn-quiet btn-sm" data-copy="invite-message">Copy message</button>
+            <button type="button" class="btn btn-quiet btn-sm" data-copy="invite-link">Copy link</button>
+            Copy it now — it is not stored and will not be shown again.
+        </p>
+        <textarea id="invite-message" class="sr-only" readonly tabindex="-1" aria-hidden="true"
+                  th:text="'Salam tout le monde 👋 Le planning du télétravail est en ligne. Inscrivez-vous ici (2 minutes) : '
+                           + ${inviteLink}
+                           + (${domain != ''} ? ' — avec votre adresse @' + ${domain} : '')
+                           + '. Choisissez votre nom, un mot de passe, et déclarez vos congés à venir.'"></textarea>
+    </section>
+
     <section class="masthead">
         <div class="masthead-left">
-            <span class="eyebrow">Accounts</span>
-            <h1 class="display" th:text="${#lists.size(users)}">4</h1>
+            <span class="eyebrow">Équipe</span>
+            <h1 class="display" th:text="${plannedCount}">16</h1>
+        </div>
+
+        <div class="masthead-right">
+            <dl class="facts">
+                <div><dt>Signed up</dt><dd class="num" th:text="${joinedCount} + '/' + ${plannedCount}">9/16</dd></div>
+                <div><dt>Days needed</dt><dd class="num" th:text="${needed}">48</dd></div>
+                <div><dt>Slots</dt><dd class="num" th:text="${slots}">50</dd></div>
+            </dl>
         </div>
     </section>
 
     <section class="panel">
-        <h2 class="panel-title">Add an account</h2>
+        <h2 class="panel-title">Join link</h2>
+
+        <p class="panel-lead" th:if="${invite}">
+            A link is live until
+            <b th:text="${#temporals.format(invite.expiresAt, 'd MMM yyyy HH:mm')}">6 Oct 2026</b>.
+            It is only shown when issued — issue a new one if you need it again.
+        </p>
+        <p class="panel-lead" th:unless="${invite}">No link is live. Issue one and post it in the
+            team chat: everyone picks their own name and password, nobody waits on you.</p>
+
+        <div class="actions actions-left">
+            <form method="post" th:action="@{/admin/users/invite}">
+                <button type="submit" class="btn btn-primary"
+                        th:text="${invite} ? 'Issue a new link' : 'Issue a join link'">Issue a join link</button>
+            </form>
+            <form method="post" th:action="@{/admin/users/invite/revoke}" th:if="${invite}"
+                  data-confirm="Revoke the join link? Nobody new can sign up until you issue another.">
+                <button type="submit" class="btn btn-quiet">Revoke</button>
+            </form>
+        </div>
+
+        <p class="panel-note">
+            <th:block th:if="${domain != ''}">Only <b th:text="'@' + ${domain}">@cirestechnologies.ma</b>
+                addresses are accepted, so a forwarded link is no use outside the company.</th:block>
+            Somebody new who is not listed can type their own name. If somebody picks the wrong
+            name, <b>Undo sign-up</b> frees it for its owner.
+        </p>
+    </section>
+
+    <section class="panel">
+        <h2 class="panel-title">Add someone</h2>
 
         <form method="post" th:action="@{/admin/users}" class="row-form">
             <label class="field">
-                <span>Email</span>
-                <input type="email" name="email" required placeholder="prenom.nom@cirestechnologies.ma">
+                <span>Name <small>as the chart shows it</small></span>
+                <input type="text" name="name" maxlength="64" placeholder="Yasmine">
             </label>
 
             <label class="field">
+                <span>Email <small>optional</small></span>
+                <input type="email" name="email" placeholder="prenom.nom@cirestechnologies.ma">
+            </label>
+
+            <label class="field field-narrow">
                 <span>Role</span>
                 <select name="role">
                     <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}"
@@ -45,79 +112,103 @@
                 </select>
             </label>
 
-            <label class="field">
-                <span>Roster name</span>
-                <select name="rosterName">
-                    <option value="">— none —</option>
-                    <option th:each="n : ${rosterNames}" th:value="${n}" th:text="${n}">Sara</option>
-                </select>
+            <label class="check">
+                <input type="checkbox" name="onSchedule" value="true" checked>
+                <span>On the schedule</span>
             </label>
 
-            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="submit" class="btn btn-primary">Add</button>
         </form>
 
-        <p class="panel-note">A temporary password is generated and shown once. They choose
-            their own the first time they sign in.</p>
+        <p class="panel-note">A name alone is enough: they are planned from the next week
+            generated and sign up with the join link. Add an email as well to hand them a
+            temporary password instead. An email with no name is an account nobody plans for,
+            such as a second admin.</p>
     </section>
 
     <table class="users">
         <thead>
         <tr>
+            <th scope="col">Name</th>
             <th scope="col">Email</th>
             <th scope="col">Role</th>
-            <th scope="col">Roster</th>
-            <th scope="col">Status</th>
+            <th scope="col">Schedule</th>
             <th scope="col">Last seen</th>
             <th scope="col"><span class="sr-only">Actions</span></th>
         </tr>
         </thead>
         <tbody>
         <tr th:each="u : ${users}" th:classappend="${!u.active} ? 'is-inactive' : ''">
-            <td class="u-email">
-                <span th:text="${u.email}">someone@example.com</span>
-                <span class="tag" th:if="${u.id == meId}">you</span>
+            <td>
+                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/rename'}"
+                      class="rename">
+                    <input type="text" name="name" th:value="${u.rosterName}" maxlength="64"
+                           required placeholder="no name" aria-label="Name">
+                    <button type="submit" class="btn btn-quiet btn-sm">Save</button>
+                </form>
+            </td>
+
+            <td>
+                <div class="u-email">
+                    <span th:if="${u.email}" th:text="${u.email}">sara@cirestechnologies.ma</span>
+                    <span th:unless="${u.email}" class="muted">not signed up</span>
+                    <span class="tag" th:if="${u.id == meId}">you</span>
+                </div>
             </td>
 
             <td>
                 <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/role'}" class="inline">
                     <select name="role" onchange="this.form.submit()"
-                            th:disabled="${u.id == meId}">
+                            th:disabled="${u.id == meId}" aria-label="Role">
                         <option th:each="r : ${roles}" th:value="${r}" th:text="${r.label}"
                                 th:selected="${r == u.role}">User</option>
                     </select>
                 </form>
             </td>
 
-            <td class="u-roster" th:text="${u.rosterName} ?: '—'">Sara</td>
-
             <td>
-                <span class="pill" th:classappend="${u.active} ? 'pill-now' : 'pill-past'"
-                      th:text="${u.active} ? 'Active' : 'Disabled'">Active</span>
-                <span class="pill pill-warn" th:if="${u.mustChangePassword}">Temp password</span>
+                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/schedule'}" class="inline">
+                    <input type="hidden" name="onSchedule" th:value="${!u.onSchedule}">
+                    <label class="check">
+                        <input type="checkbox" th:checked="${u.onSchedule}"
+                               onchange="this.form.submit()" aria-label="On the schedule">
+                        <span th:text="${u.onSchedule} ? 'planned' : 'not planned'">planned</span>
+                    </label>
+                </form>
+                <span class="pill pill-past" th:unless="${u.active}">left</span>
+                <span class="pill pill-warn" th:if="${u.mustChangePassword}">temp password</span>
             </td>
 
             <td class="u-seen num"
                 th:text="${u.lastLoginAt} != null
                          ? ${#temporals.format(u.lastLoginAt, 'd MMM HH:mm')} : 'never'">never</td>
 
-            <td class="u-actions">
-                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/reset-password'}"
-                      class="inline">
-                    <button type="submit" class="btn btn-quiet btn-sm">Reset password</button>
-                </form>
-
-                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/active'}"
-                      class="inline" th:if="${u.id != meId}">
-                    <input type="hidden" name="active" th:value="${!u.active}">
-                    <button type="submit" class="btn btn-quiet btn-sm"
-                            th:text="${u.active} ? 'Deactivate' : 'Reactivate'">Deactivate</button>
-                </form>
-
-                <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/delete'}"
-                      class="inline" th:if="${u.id != meId}"
-                      onsubmit="return confirm('Delete this account permanently? This cannot be undone.');">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                </form>
+            <td>
+                <div class="u-actions">
+                    <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/reset-password'}"
+                          class="inline" th:if="${u.email}">
+                        <button type="submit" class="btn btn-quiet btn-sm">Reset password</button>
+                    </form>
+    
+                    <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/unjoin'}"
+                          class="inline" th:if="${u.email != null and u.rosterName != null and u.id != meId}"
+                          data-confirm="Undo this sign-up? Their email and password go, and the name can be claimed again.">
+                        <button type="submit" class="btn btn-quiet btn-sm">Undo sign-up</button>
+                    </form>
+    
+                    <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/active'}"
+                          class="inline" th:if="${u.id != meId}">
+                        <input type="hidden" name="active" th:value="${!u.active}">
+                        <button type="submit" class="btn btn-quiet btn-sm"
+                                th:text="${u.active} ? 'Left the team' : 'Reactivate'">Left the team</button>
+                    </form>
+    
+                    <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/delete'}"
+                          class="inline" th:if="${u.id != meId}"
+                          data-confirm="Delete permanently? Somebody leaving is better marked as left — past weeks keep their name either way.">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
         </tbody>
@@ -128,6 +219,44 @@
 <footer th:replace="~{fragments/chrome :: foot(false)}"></footer>
 
 <script th:replace="~{fragments/chrome :: theme-script}"></script>
+<script>
+    document.querySelectorAll('[data-copy]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var source = document.getElementById(button.getAttribute('data-copy'));
+            var text = (source.value !== undefined ? source.value : source.textContent).trim();
+            var label = button.textContent;
+
+            function done() {
+                button.textContent = 'Copied';
+                setTimeout(function () { button.textContent = label; }, 1600);
+            }
+
+            // The clipboard API only exists on https and localhost; the office box may be neither.
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done);
+                return;
+            }
+            var scratch = document.createElement('textarea');
+            scratch.value = text;
+            document.body.appendChild(scratch);
+            scratch.select();
+            if (document.execCommand('copy')) done();
+            scratch.remove();
+        });
+    });
+
+    document.querySelectorAll('form.rename input[name="name"]').forEach(function (input) {
+        input.addEventListener('input', function () {
+            input.form.classList.toggle('is-dirty', input.value.trim() !== input.defaultValue);
+        });
+    });
+
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            if (!confirm(form.getAttribute('data-confirm'))) event.preventDefault();
+        });
+    });
+</script>
 
 </body>
 </html>

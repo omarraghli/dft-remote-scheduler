@@ -47,6 +47,9 @@ server:
 # The schedule itself. Nothing here is hardcoded in Java.
 # ---------------------------------------------------------------------------
 remote:
+  # The team the roster starts with — read once, when nobody is on the schedule, and listed as
+  # people who have not signed up yet. After that the team is edited on the Équipe page
+  # (/admin/users) and changing this list does nothing.
   people:
     - Sara
     - Rajae
@@ -165,6 +168,12 @@ remote:
     # Shared secret for machine callers, sent as the X-Service-Token header and treated as an
     # admin. Empty means no token is accepted at all, which is the default.
     service-token: ${REMOTE_SERVICE_TOKEN:}
+
+    # The join link an admin generates on the Équipe page and posts in the team chat. Only
+    # addresses on this domain can use it; empty accepts any.
+    join:
+      allowed-domain: ${REMOTE_JOIN_DOMAIN:cirestechnologies.ma}
+      ttl: 14d
 
   job:
     # Off: admins generate each week themselves from the page. The job is kept, not removed —

@@ -89,24 +89,28 @@
                        class="n-days" th:attr="form='h-' + ${h.id}">
             </td>
 
-            <td class="h-when">
-                <span th:text="${h.when}">vendredi 20 mars 2026</span>
-                <span class="pill pill-past" th:if="${h.weekendOnly}">weekend — no effect</span>
-                <a class="pill pill-warn" th:if="${h.plannedWeek}"
-                   th:href="@{/(week=${h.plannedWeek})}">week already planned</a>
+            <td>
+                <div class="h-when">
+                    <span th:text="${h.when}">vendredi 20 mars 2026</span>
+                    <span class="pill pill-past" th:if="${h.weekendOnly}">weekend — no effect</span>
+                    <a class="pill pill-warn" th:if="${h.plannedWeek}"
+                       th:href="@{/(week=${h.plannedWeek})}">week already planned</a>
+                </div>
             </td>
 
-            <td class="u-actions">
-                <form method="post" th:action="@{'/admin/holidays/' + ${h.id}}"
-                      th:id="'h-' + ${h.id}" class="inline">
-                    <button type="submit" class="btn btn-quiet btn-sm">Save</button>
-                </form>
-
-                <form method="post" th:action="@{'/admin/holidays/' + ${h.id} + '/delete'}"
-                      class="inline"
-                      onsubmit="return confirm('Remove this holiday? Weeks already planned keep their schedule.');">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                </form>
+            <td>
+                <div class="u-actions">
+                    <form method="post" th:action="@{'/admin/holidays/' + ${h.id}}"
+                          th:id="'h-' + ${h.id}" class="inline">
+                        <button type="submit" class="btn btn-quiet btn-sm">Save</button>
+                    </form>
+    
+                    <form method="post" th:action="@{'/admin/holidays/' + ${h.id} + '/delete'}"
+                          class="inline"
+                          onsubmit="return confirm('Remove this holiday? Weeks already planned keep their schedule.');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
 

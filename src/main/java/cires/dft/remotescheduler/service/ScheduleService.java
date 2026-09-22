@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ public class ScheduleService {
     private final HolidayCalendar holidays;
     private final VacationCalendar vacations;
     private final WeekPlanService weekPlans;
+    private final RosterService people;
     private final Clock clock;
 
     public ScheduleService(ScheduleSolver solver,
@@ -52,6 +54,7 @@ public class ScheduleService {
                            HolidayCalendar holidays,
                            VacationCalendar vacations,
                            WeekPlanService weekPlans,
+                           RosterService people,
                            Clock clock) {
         this.solver = solver;
         this.repository = repository;
@@ -59,6 +62,7 @@ public class ScheduleService {
         this.holidays = holidays;
         this.vacations = vacations;
         this.weekPlans = weekPlans;
+        this.people = people;
         this.clock = clock;
     }
 
@@ -107,7 +111,8 @@ public class ScheduleService {
         WeekSchedule saved = repository.save(schedule);
 
         log.info("Generated schedule for week starting {} — {} remote days across {} people",
-                monday, saved.getAssignments().size(), properties.getPeople().size());
+                monday, saved.getAssignments().size(), result.peopleByDay().stream()
+                        .flatMap(List::stream).distinct().count());
 
         return saved;
     }
@@ -263,6 +268,35 @@ public class ScheduleService {
         return List.copyOf(weeks);
     }
 
+    /** A planned week that has somebody remote on a day they are on leave. */
+    public record LeaveConflict(LocalDate week, String person) {
+    }
+
+    /**
+     * Every planned week from {@code from} on that puts somebody remote while they are away.
+     * Leave is declared by the people taking it, at any hour, so the admins cannot rely on
+     * having seen the flash message; this is what the pages show them instead.
+     */
+    @Transactional(readOnly = true)
+    public List<LeaveConflict> leaveConflicts(LocalDate from) {
+        LocalDate monday = WeekStarts.of(from);
+        List<LeaveConflict> conflicts = new ArrayList<>();
+
+        for (WeekSchedule schedule :
+                repository.findByWeekStartGreaterThanEqualOrderByWeekStartAsc(monday)) {
+            Map<Integer, List<String>> byDay = schedule.peopleByDayIndex();
+            vacations.awayDays(schedule.getWeekStart()).entrySet().stream()
+                    .filter(entry -> entry.getValue().stream().anyMatch(day ->
+                            byDay.getOrDefault(day, List.of()).contains(entry.getKey())))
+                    .map(Map.Entry::getKey)
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .forEach(person -> conflicts.add(
+                            new LeaveConflict(schedule.getWeekStart(), person)));
+        }
+
+        return conflicts;
+    }
+
     /** The same over a whole grid: everybody the stored schedule now disagrees with, by name. */
     @Transactional(readOnly = true)
     public List<String> peopleContradictingPlannedWeek(LocalDate week,
@@ -282,7 +316,7 @@ public class ScheduleService {
     }
 
     /**
-     * Translates the YAML configuration into the solver's input, resolving day names to indices.
+     * Translates the configuration and the roster into the solver's input, resolving day names to indices.
      *
      * <p>The week matters: public holidays are dates, so which days are off — and with them the
      * quota, lowered by {@link HolidayCalendar} for a short week — depends on the week being
@@ -312,7 +346,7 @@ public class ScheduleService {
         }
 
         return new SolverInput(
-                properties.getPeople(),
+                people.activeNames(),
                 days,
                 slotsPerDay,
                 holidays.remotesPerPerson(week),
@@ -343,7 +377,7 @@ public class ScheduleService {
         Map<String, Integer> personal = vacations.quotas(monday, closedDays(monday), weekQuota);
 
         Map<String, Integer> expected = new LinkedHashMap<>();
-        for (String person : properties.getPeople()) {
+        for (String person : people.activeNames()) {
             expected.put(person, personal.getOrDefault(person, weekQuota));
         }
 

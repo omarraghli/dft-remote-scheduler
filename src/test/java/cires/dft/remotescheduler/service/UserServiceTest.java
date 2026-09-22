@@ -1,6 +1,7 @@
 package cires.dft.remotescheduler.service;
 
 import cires.dft.remotescheduler.AbstractPostgresIntegrationTest;
+import cires.dft.remotescheduler.TestAccounts;
 import cires.dft.remotescheduler.domain.AppUser;
 import cires.dft.remotescheduler.domain.Role;
 import cires.dft.remotescheduler.repository.AppUserRepository;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -19,13 +21,14 @@ class UserServiceTest extends AbstractPostgresIntegrationTest {
 
     @Autowired private UserService userService;
     @Autowired private AppUserRepository users;
+    @Autowired private JdbcTemplate jdbc;
     @Autowired private PasswordEncoder passwordEncoder;
 
     private Long adminId;
 
     @BeforeEach
     void reset() {
-        users.deleteAll();
+        TestAccounts.reset(jdbc);
         userService.create("boss@cires.ma", Role.ADMIN, null);
         adminId = users.findByEmail("boss@cires.ma").orElseThrow().getId();
     }

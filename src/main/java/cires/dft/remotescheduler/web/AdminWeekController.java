@@ -2,6 +2,7 @@ package cires.dft.remotescheduler.web;
 
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.service.HolidayCalendar;
+import cires.dft.remotescheduler.service.RosterService;
 import cires.dft.remotescheduler.service.ScheduleService;
 import cires.dft.remotescheduler.service.WeekPlan;
 import cires.dft.remotescheduler.service.WeekPlanException;
@@ -41,15 +42,18 @@ public class AdminWeekController {
     private final WeekPlanService weekPlanService;
     private final RemoteScheduleProperties properties;
     private final HolidayCalendar holidays;
+    private final RosterService people;
 
     public AdminWeekController(ScheduleService scheduleService,
                                WeekPlanService weekPlanService,
                                RemoteScheduleProperties properties,
-                               HolidayCalendar holidays) {
+                               HolidayCalendar holidays,
+                               RosterService people) {
         this.scheduleService = scheduleService;
         this.weekPlanService = weekPlanService;
         this.properties = properties;
         this.holidays = holidays;
+        this.people = people;
     }
 
     /** One roster person as the grid prints them. */
@@ -86,8 +90,7 @@ public class AdminWeekController {
         WeekPlan plan = weekPlanService.forWeek(shownWeek);
 
         List<PersonRow> rows = new ArrayList<>();
-        for (String person : properties.getPeople().stream()
-                .sorted(String.CASE_INSENSITIVE_ORDER).toList()) {
+        for (String person : people.activeNames()) {
 
             rows.add(new PersonRow(person, plan.preferredFor(person), plan.onSiteFor(person)));
         }
@@ -125,7 +128,7 @@ public class AdminWeekController {
             Map<String, Set<Integer>> wanted = byPerson(preferred);
             Map<String, Set<Integer>> required = byPerson(onSite);
 
-            scheduleService.setWeekPlan(target, properties.getPeople(),
+            scheduleService.setWeekPlan(target, people.activeNames(),
                     new WeekPlan(wanted, required),
                     principal == null ? null : principal.getName());
 

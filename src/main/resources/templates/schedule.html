@@ -12,7 +12,52 @@
     <div class="wrap notices">
         <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
         <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+        <!--/* Planned weeks that now have somebody remote while on leave, whoever declared it. */-->
+        <p class="note note-warn"
+           th:if="${leaveConflicts != null and !#lists.isEmpty(leaveConflicts)}">
+            Leave landed on planned weeks —
+            <span th:each="c, it : ${leaveConflicts}"><b th:text="${c.person}">Sara</b>
+                in <a th:href="@{/(week=${c.week})}" th:text="'week of ' + ${c.week}">week of 2026-10-05</a><span
+                    th:unless="${it.last}">, </span></span>.
+            Re-roll those weeks so nobody is planned remote while off.
+        </p>
     </div>
+
+    <!-- ── Mes jours souhaités ──────────────────────────────────────────── -->
+    <!-- First on the page: it is the one thing on it that anybody can act on, and it only
+         counts before the week is planned. -->
+    <section class="wrap prefs" th:if="${canSetPreferences}">
+      <div class="panel">
+        <h2 class="panel-title">Mes jours souhaités</h2>
+
+        <form method="post" th:action="@{/preferences}" class="row-form">
+            <input type="hidden" name="week" th:value="${shownWeek}">
+
+            <label class="pick-day" th:each="name, day : ${dayNames}"
+                   th:classappend="(${holidayNames.containsKey(day.index)} ? 'is-holiday ' : '')
+                                 + (${myAway.contains(day.index)} ? 'is-away ' : '')
+                                 + (${myOnSite.contains(day.index)} ? 'is-onsite' : '')">
+                <input type="checkbox" name="preferred" th:value="${day.index}"
+                       th:checked="${myPreferred.contains(day.index)}">
+                <span th:text="${name}">Lundi</span>
+                <small th:if="${holidayNames.containsKey(day.index)}"
+                       th:text="${holidayNames[day.index]}">Marche Verte</small>
+                <small th:if="${myAway.contains(day.index)}">congé</small>
+                <small th:if="${myOnSite.contains(day.index)}">needed on site</small>
+            </label>
+
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+
+        <p class="panel-note">A wish, not a booking. The schedule grants as many as the week has
+            room for, and when more people want a day than it has slots, who gets it is down to
+            the draw. Asking for none, or for all five, still gets you
+            <b th:text="${remotesPerPerson}">3</b> days.</p>
+
+        <p class="panel-note" th:if="${schedule != null}">This week is already planned, so what
+            you tick counts the next time an admin re-rolls it.</p>
+      </div>
+    </section>
 
     <!-- ── Masthead ─────────────────────────────────────────────────────── -->
     <section class="wrap masthead">
@@ -208,40 +253,6 @@
             <p class="ghost-sub" sec:authorize="!hasRole('ADMIN')">The Thursday job plans the
                 coming week on its own. An admin can generate this one sooner.</p>
         </div>
-    </section>
-
-    <!-- ── Mes jours souhaités ──────────────────────────────────────────── -->
-    <section class="wrap" th:if="${canSetPreferences}">
-      <div class="panel">
-        <h2 class="panel-title">Mes jours souhaités</h2>
-
-        <form method="post" th:action="@{/preferences}" class="row-form">
-            <input type="hidden" name="week" th:value="${shownWeek}">
-
-            <label class="pick-day" th:each="name, day : ${dayNames}"
-                   th:classappend="(${holidayNames.containsKey(day.index)} ? 'is-holiday ' : '')
-                                 + (${myAway.contains(day.index)} ? 'is-away ' : '')
-                                 + (${myOnSite.contains(day.index)} ? 'is-onsite' : '')">
-                <input type="checkbox" name="preferred" th:value="${day.index}"
-                       th:checked="${myPreferred.contains(day.index)}">
-                <span th:text="${name}">Lundi</span>
-                <small th:if="${holidayNames.containsKey(day.index)}"
-                       th:text="${holidayNames[day.index]}">Marche Verte</small>
-                <small th:if="${myAway.contains(day.index)}">congé</small>
-                <small th:if="${myOnSite.contains(day.index)}">needed on site</small>
-            </label>
-
-            <button type="submit" class="btn btn-primary">Save</button>
-        </form>
-
-        <p class="panel-note">A wish, not a booking. The schedule grants as many as the week has
-            room for, and when more people want a day than it has slots, who gets it is down to
-            the draw. Asking for none, or for all five, still gets you
-            <b th:text="${remotesPerPerson}">3</b> days.</p>
-
-        <p class="panel-note" th:if="${schedule != null}">This week is already planned, so what
-            you tick counts the next time an admin re-rolls it.</p>
-      </div>
     </section>
 
 </main>

@@ -1,0 +1,56 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-person
+      author: o.raghli
+      comment: The roster, moved out of remote.people so that somebody joining or leaving does
+               not take a redeploy. Every other table keeps referring to a person by name, as
+               text, which is why a rename is done by PersonService across all of them at once.
+      changes:
+        - createTable:
+            tableName: person
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_person
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(64)
+                  remarks: How the schedule spells them. The key every other table stores.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  remarks: False once they have left. Kept, not deleted, so old weeks still name them.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: left_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+        # Case-insensitive, because every lookup by name is: "sara" and "Sara" are one person.
+        - sql:
+            sql: CREATE UNIQUE INDEX uk_person_name ON person (lower(name))
+
+        # One account per person. Enforced here rather than only in UserService because two
+        # people can open the join link and pick the same name in the same second.
+        - sql:
+            sql: CREATE UNIQUE INDEX uk_app_user_roster_name ON app_user (lower(roster_name))
+                 WHERE roster_name IS NOT NULL
+
+      rollback:
+        - sql:
+            sql: DROP INDEX uk_app_user_roster_name
+        - dropTable:
+            tableName: person

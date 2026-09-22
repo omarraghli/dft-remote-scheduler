@@ -16,8 +16,11 @@ import java.util.List;
 @ConfigurationProperties(prefix = "remote")
 public class RemoteScheduleProperties {
 
-    /** The team, in any order — the solver shuffles them anyway. */
-    @NotEmpty
+    /**
+     * The team the roster starts with. Read once, when nobody is on the schedule, and listed as
+     * accounts nobody has claimed; after that the team is edited on the Équipe page and this
+     * list is ignored.
+     */
     private List<String> people = new ArrayList<>();
 
     /** Working days, in order. Weekends are simply left out. */

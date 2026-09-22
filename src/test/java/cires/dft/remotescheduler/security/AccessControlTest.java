@@ -1,6 +1,7 @@
 package cires.dft.remotescheduler.security;
 
 import cires.dft.remotescheduler.AbstractPostgresIntegrationTest;
+import cires.dft.remotescheduler.TestAccounts;
 import cires.dft.remotescheduler.domain.Role;
 import cires.dft.remotescheduler.repository.AppUserRepository;
 import cires.dft.remotescheduler.service.UserService;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
@@ -28,10 +30,11 @@ class AccessControlTest extends AbstractPostgresIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private UserService userService;
     @Autowired private AppUserRepository users;
+    @Autowired private JdbcTemplate jdbc;
 
     @BeforeEach
     void reset() {
-        users.deleteAll();
+        TestAccounts.reset(jdbc);
         userService.create("admin@cires.ma", Role.ADMIN, null);
         userService.create("reader@cires.ma", Role.USER, "Sara");
     }
@@ -120,7 +123,8 @@ class AccessControlTest extends AbstractPostgresIntegrationTest {
     void serviceTokenWorks() throws Exception {
         mvc.perform(post("/api/schedules/generate")
                         .header(ServiceTokenFilter.HEADER, "test-token-123")
-                        .param("week", "2026-10-05"))
+                        // A week no other test plans, since generating never overwrites.
+                        .param("week", "2032-03-08"))
                 .andExpect(status().isCreated());
     }
 

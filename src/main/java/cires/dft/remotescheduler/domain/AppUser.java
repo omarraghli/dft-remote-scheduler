@@ -13,7 +13,14 @@ import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.Locale;
 
-/** A login account. */
+/**
+ * Somebody: a member of the team, an admin, or both.
+ *
+ * <p>One row per person, whether or not they have signed up. Somebody on the roster who has not
+ * joined yet has a name and no email or password — the join link fills those in — so the team
+ * exists, and is planned, from the day it is listed rather than the day the last person gets
+ * round to signing up.
+ */
 @Entity
 @Table(name = "app_user",
         uniqueConstraints = @UniqueConstraint(name = "uk_app_user_email", columnNames = "email"))
@@ -23,19 +30,25 @@ public class AppUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "email", nullable = false, length = 190)
+    /** Null until they join. */
+    @Column(name = "email", length = 190)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 100)
+    /** Null until they join. */
+    @Column(name = "password_hash", length = 100)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 16)
     private Role role;
 
-    /** Which person on the schedule roster this account is, if any. */
+    /** Their name as the schedule spells it. Every other table refers to them by it. */
     @Column(name = "roster_name", length = 64)
     private String rosterName;
+
+    /** Planned for remote days. Off for an admin who is not part of the team. */
+    @Column(name = "on_schedule", nullable = false)
+    private boolean onSchedule;
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
@@ -61,6 +74,43 @@ public class AppUser {
         this.role = role;
         this.rosterName = rosterName;
         this.createdAt = createdAt;
+    }
+
+    /** Somebody on the team who has not signed up yet. */
+    public static AppUser unjoined(String name, Instant createdAt) {
+        AppUser person = new AppUser(null, null, Role.USER, name, createdAt);
+        person.onSchedule = true;
+        person.mustChangePassword = false;
+        return person;
+    }
+
+    /** Whether they have signed up — an email and a password to sign in with. */
+    public boolean hasJoined() {
+        return email != null && passwordHash != null;
+    }
+
+    /** Signing up: their address and the password they chose themselves. */
+    public void join(String email, String passwordHash) {
+        this.email = normaliseEmail(email);
+        this.passwordHash = passwordHash;
+        this.mustChangePassword = false;
+    }
+
+    /**
+     * Back to not joined, keeping the person — what fixes somebody signing up under the wrong
+     * name, which frees it for its owner.
+     */
+    public void unjoin() {
+        this.email = null;
+        this.passwordHash = null;
+        this.mustChangePassword = false;
+        this.lastLoginAt = null;
+    }
+
+    /** An admin handing out a temporary password rather than the join link. */
+    public void issueCredentials(String email, String temporaryHash) {
+        this.email = normaliseEmail(email);
+        assignTemporaryPassword(temporaryHash);
     }
 
     /** Emails are compared and stored lower-cased, so case can never split an account in two. */
@@ -110,6 +160,14 @@ public class AppUser {
 
     public void setRosterName(String rosterName) {
         this.rosterName = rosterName;
+    }
+
+    public boolean isOnSchedule() {
+        return onSchedule;
+    }
+
+    public void setOnSchedule(boolean onSchedule) {
+        this.onSchedule = onSchedule;
     }
 
     public boolean isActive() {

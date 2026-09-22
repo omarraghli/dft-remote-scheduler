@@ -1,0 +1,74 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-person-is-an-account
+      author: o.raghli
+      comment: A person and their account are one row. Somebody on the team who has not signed
+               up yet is an account with a name and no email or password; the join link fills
+               those in. on_schedule separates the team from an admin nobody plans for. The
+               person table from 005 is folded in and dropped.
+      changes:
+        - dropNotNullConstraint:
+            tableName: app_user
+            columnName: email
+            columnDataType: VARCHAR(190)
+
+        - dropNotNullConstraint:
+            tableName: app_user
+            columnName: password_hash
+            columnDataType: VARCHAR(100)
+
+        - addColumn:
+            tableName: app_user
+            columns:
+              - column:
+                  name: on_schedule
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  remarks: Planned for remote days. Needs a roster_name.
+                  constraints:
+                    nullable: false
+
+        # Accounts already linked to somebody become that somebody, spelled as the roster had it.
+        - sql:
+            sql: >
+              UPDATE app_user u
+                 SET on_schedule = TRUE,
+                     roster_name = p.name,
+                     active = u.active AND p.active
+                FROM person p
+               WHERE lower(u.roster_name) = lower(p.name)
+
+        # Everybody else on the roster becomes an account that has not been claimed yet.
+        - sql:
+            sql: >
+              INSERT INTO app_user (email, password_hash, role, roster_name, active,
+                                    must_change_password, on_schedule, created_at)
+              SELECT NULL, NULL, 'USER', p.name, p.active, FALSE, TRUE, p.created_at
+                FROM person p
+               WHERE NOT EXISTS (SELECT 1 FROM app_user u
+                                  WHERE lower(u.roster_name) = lower(p.name))
+
+        - sql:
+            sql: >
+              ALTER TABLE app_user ADD CONSTRAINT ck_app_user_schedule_has_name
+                CHECK (NOT on_schedule OR roster_name IS NOT NULL)
+
+        - dropTable:
+            tableName: person
+
+      rollback:
+        - sql:
+            sql: >
+              CREATE TABLE person (id BIGSERIAL CONSTRAINT pk_person PRIMARY KEY,
+                                   name VARCHAR(64) NOT NULL,
+                                   active BOOLEAN NOT NULL DEFAULT TRUE,
+                                   created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                                   left_at TIMESTAMP WITH TIME ZONE);
+              CREATE UNIQUE INDEX uk_person_name ON person (lower(name));
+              INSERT INTO person (name, active, created_at)
+                SELECT roster_name, active, created_at FROM app_user WHERE on_schedule;
+              DELETE FROM app_user WHERE email IS NULL;
+              ALTER TABLE app_user DROP CONSTRAINT ck_app_user_schedule_has_name;
+              ALTER TABLE app_user DROP COLUMN on_schedule;
+              ALTER TABLE app_user ALTER COLUMN email SET NOT NULL;
+              ALTER TABLE app_user ALTER COLUMN password_hash SET NOT NULL;

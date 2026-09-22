@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/chrome :: head('Congés')}"></head>
+<body>
+
+<header th:replace="~{fragments/chrome :: bar('leave')}"></header>
+
+<main class="wrap">
+
+    <div class="notices">
+        <p class="note note-ok" th:if="${message}" th:text="${message}"></p>
+        <p class="note note-err" th:if="${error}" th:text="${error}"></p>
+
+        <!-- No approval step, so this is the check: who else is already off over those days. -->
+        <p class="note note-warn" th:if="${overlap}">
+            Also away over those days: <b th:text="${overlap}">Sara (lun. 5 oct. – mer. 7 oct.)</b>.
+            Worth a word with them if you cover for each other.
+        </p>
+
+        <p class="note note-warn" th:if="${planned}">
+            That falls in a week that is already planned with you remote on a day you are now
+            off. The admins can see it and will re-roll the week.
+        </p>
+    </div>
+
+    <section class="masthead">
+        <div class="masthead-left">
+            <span class="eyebrow">Congés</span>
+            <h1 class="display" th:text="${#lists.size(awayNow)}">2</h1>
+        </div>
+
+        <div class="masthead-right">
+            <p class="provenance">
+                away today · <b th:text="${#lists.size(comingUp)}">3</b> more in the next 30 days
+            </p>
+            <p class="provenance" sec:authorize="hasRole('ADMIN')">
+                <a class="src" th:href="@{/admin/vacations}">Record leave for someone else</a>
+            </p>
+        </div>
+    </section>
+
+    <!-- ── Your own ─────────────────────────────────────────────────────── -->
+    <section class="panel" th:if="${me}">
+        <h2 class="panel-title">Your leave</h2>
+
+        <form method="post" th:action="@{/leave}" class="row-form">
+            <label class="field">
+                <span>First day away</span>
+                <input type="date" name="startDate" required th:value="${today}" th:min="${today}">
+            </label>
+
+            <label class="field">
+                <span>Last day away <small>the same date for one day off</small></span>
+                <input type="date" name="endDate" required th:value="${today}" th:min="${today}">
+            </label>
+
+            <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+
+        <table class="listing listing-mine" th:unless="${#lists.isEmpty(mine)}">
+            <tbody>
+            <tr th:each="v : ${mine}" th:classappend="${v.over} ? 'is-inactive' : ''">
+                <td>
+                    <input type="date" name="startDate" th:value="${v.startDate}" required
+                           th:disabled="${v.over}" th:attr="form='l-' + ${v.id}" aria-label="First day">
+                </td>
+                <td>
+                    <input type="date" name="endDate" th:value="${v.endDate}" required
+                           th:disabled="${v.over}" th:attr="form='l-' + ${v.id}" aria-label="Last day">
+                </td>
+                <td>
+                    <div class="h-when">
+                        <span th:text="${v.when}">lun. 5 oct. – ven. 9 oct.</span>
+                        <span class="pill" th:text="${v.days} + (${v.days} > 1 ? ' days' : ' day')">5 days</span>
+                        <span class="pill pill-past" th:if="${v.over}">over</span>
+                        <span class="pill pill-warn" th:if="${v.planned and !v.over}">week already planned</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="u-actions">
+                        <th:block th:unless="${v.over}">
+                            <form method="post" th:action="@{'/leave/' + ${v.id}}" th:id="'l-' + ${v.id}"
+                                  class="inline">
+                                <button type="submit" class="btn btn-quiet btn-sm">Save</button>
+                            </form>
+                            <form method="post" th:action="@{'/leave/' + ${v.id} + '/delete'}" class="inline"
+                                  onsubmit="return confirm('Remove this leave?');">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </th:block>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <p class="panel-note">Nobody has to approve it — it simply takes those days out of your
+            week, and the first day back is one in the office. Check the calendar below before
+            you book, so the whole team is not off at once.</p>
+    </section>
+
+    <section class="panel" th:unless="${me}">
+        <h2 class="panel-title">Your leave</h2>
+        <p class="panel-lead">You are not on the schedule, so there is no leave to record for
+            you. Ask an admin to put you on it on the Équipe page.</p>
+    </section>
+
+    <!-- ── Who is away ──────────────────────────────────────────────────── -->
+    <section class="away-lists">
+        <div>
+            <h2 class="panel-title">Away today</h2>
+            <ul class="away-list">
+                <li th:each="a : ${awayNow}" th:classappend="${a.me} ? 'is-me' : ''">
+                    <b th:text="${a.person}">Sara</b> <span th:text="${a.when}">back after ven. 9 oct.</span>
+                </li>
+                <li th:if="${#lists.isEmpty(awayNow)}" class="muted">Everybody is in.</li>
+            </ul>
+        </div>
+        <div>
+            <h2 class="panel-title">Coming up</h2>
+            <ul class="away-list">
+                <li th:each="a : ${comingUp}" th:classappend="${a.me} ? 'is-me' : ''">
+                    <b th:text="${a.person}">Adam</b> <span th:text="${a.when}">lun. 12 oct. – ven. 16 oct.</span>
+                </li>
+                <li th:if="${#lists.isEmpty(comingUp)}" class="muted">Nothing booked in the next 30 days.</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- ── The calendar ─────────────────────────────────────────────────── -->
+    <section class="leave-cal-wrap">
+        <table class="leave-cal">
+            <thead>
+            <tr>
+                <th scope="col" class="lc-name"><span class="sr-only">Person</span></th>
+                <th scope="col" th:each="w : ${weeks}" th:classappend="${w.current} ? 'is-current' : ''">
+                    <a th:href="@{/(week=${w.monday})}" th:text="'W' + ${w.number}">W39</a>
+                    <small th:text="${w.range}">21 – 25 sept.</small>
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${rows}" th:classappend="${r.me} ? 'is-me' : ''">
+                <th scope="row" class="lc-name">
+                    <span th:text="${r.person}">Sara</span>
+                    <span class="tag tag-me" th:if="${r.me}">you</span>
+                </th>
+                <td th:each="week, w : ${r.weeks}" th:classappend="${weeks[w.index].current} ? 'is-current' : ''">
+                    <!--/* The flex row lives in a div: display:flex on the td collapses the table. */-->
+                    <div class="lc-days">
+                        <i th:each="state, d : ${week}" th:class="'lc-day ' + ${state}"
+                           th:title="${dayNames[d.index]} + (${state == 'away'} ? ' — away' : (${state == 'holiday'} ? ' — férié' : ''))"></i>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="legend">
+            <span class="key"><i class="lc-day away"></i> away</span>
+            <span class="key"><i class="lc-day holiday"></i> férié</span>
+            <span class="key"><i class="lc-day"></i> working day</span>
+            <span class="key-note">Next 8 weeks, Monday to Friday. Click a week to open its chart.</span>
+        </div>
+    </section>
+
+</main>
+
+<footer th:replace="~{fragments/chrome :: foot(false)}"></footer>
+
+<script th:replace="~{fragments/chrome :: theme-script}"></script>
+<script>
+    // Moving the first day past the last drags the last along, so a stretch is never inverted.
+    document.querySelectorAll('input[name="startDate"]').forEach(function (start) {
+        start.addEventListener('change', function () {
+            // .form resolves the form="" attribute too, so the table rows work like the add form.
+            var end = start.form && start.form.elements.namedItem('endDate');
+            if (end && end.value < start.value) end.value = start.value;
+            if (end) end.min = start.value;
+        });
+    });
+</script>
+
+</body>
+</html>

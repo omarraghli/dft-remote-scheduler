@@ -9,3 +9,9 @@ databaseChangeLog:
       file: db/changelog/changes/003-week-plan.yaml
   - include:
       file: db/changelog/changes/004-vacation.yaml
+  - include:
+      file: db/changelog/changes/005-person.yaml
+  - include:
+      file: db/changelog/changes/006-team-invite.yaml
+  - include:
+      file: db/changelog/changes/007-person-is-an-account.yaml

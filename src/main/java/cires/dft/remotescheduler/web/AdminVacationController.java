@@ -1,7 +1,7 @@
 package cires.dft.remotescheduler.web;
 
-import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.Vacation;
+import cires.dft.remotescheduler.service.RosterService;
 import cires.dft.remotescheduler.service.ScheduleService;
 import cires.dft.remotescheduler.service.VacationManagementException;
 import cires.dft.remotescheduler.service.VacationService;
@@ -40,14 +40,14 @@ public class AdminVacationController {
 
     private final VacationService vacationService;
     private final ScheduleService scheduleService;
-    private final RemoteScheduleProperties properties;
+    private final RosterService people;
 
     public AdminVacationController(VacationService vacationService,
                                    ScheduleService scheduleService,
-                                   RemoteScheduleProperties properties) {
+                                   RosterService people) {
         this.vacationService = vacationService;
         this.scheduleService = scheduleService;
-        this.properties = properties;
+        this.people = people;
     }
 
     /**
@@ -78,9 +78,9 @@ public class AdminVacationController {
         }
 
         model.addAttribute("vacations", rows);
-        model.addAttribute("people", properties.getPeople().stream()
-                .sorted(String.CASE_INSENSITIVE_ORDER).toList());
+        model.addAttribute("people", people.activeNames());
         model.addAttribute("today", today);
+        model.addAttribute("leaveConflicts", scheduleService.leaveConflicts(today));
         model.addAttribute("away", rows.stream()
                 .filter(row -> !row.over() && !row.startDate().isAfter(today)).count());
 

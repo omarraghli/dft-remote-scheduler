@@ -1,6 +1,5 @@
 package cires.dft.remotescheduler.service;
 
-import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.Vacation;
 import cires.dft.remotescheduler.repository.VacationRepository;
 import org.slf4j.Logger;
@@ -11,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -30,14 +30,14 @@ public class VacationService implements PersonVacations {
     private static final int MAX_DAYS = 120;
 
     private final VacationRepository vacations;
-    private final RemoteScheduleProperties properties;
+    private final RosterService people;
     private final Clock clock;
 
     public VacationService(VacationRepository vacations,
-                           RemoteScheduleProperties properties,
+                           RosterService people,
                            Clock clock) {
         this.vacations = vacations;
-        this.properties = properties;
+        this.people = people;
         this.clock = clock;
     }
 
@@ -84,6 +84,71 @@ public class VacationService implements PersonVacations {
                 vacation.getStartDate(), vacation.getEndDate());
     }
 
+    /**
+     * Somebody declaring their own leave. Nobody approves it — the point is that the admins are
+     * not the bottleneck — so the limits are about what cannot be undone rather than what is
+     * wise: nothing is backdated, and leave already over is history, not theirs to rewrite.
+     */
+    @Transactional
+    public Vacation addOwn(String me, LocalDate startDate, LocalDate endDate) {
+        requireNotPast(startDate, "Leave cannot start in the past. Ask an admin to record it.");
+        return add(me, startDate, endDate);
+    }
+
+    @Transactional
+    public Vacation updateOwn(String me, Long id, LocalDate startDate, LocalDate endDate) {
+        Vacation vacation = requireOwn(me, id);
+        requireNotPast(vacation.getEndDate(), "That leave is over and can no longer be changed.");
+
+        // Moving the start earlier is backdating; keeping one already in the past is not.
+        if (startDate != null && startDate.isBefore(vacation.getStartDate())) {
+            requireNotPast(startDate, "Leave cannot start in the past. Ask an admin to record it.");
+        }
+
+        return update(id, vacation.getPersonName(), startDate, endDate);
+    }
+
+    @Transactional
+    public void deleteOwn(String me, Long id) {
+        Vacation vacation = requireOwn(me, id);
+        requireNotPast(vacation.getEndDate(), "That leave is over and can no longer be removed.");
+        delete(id);
+    }
+
+    /**
+     * Everybody else away on at least one of these days — what someone planning leave wants to
+     * know before they book, and the whole of the "no approval" bargain.
+     */
+    @Transactional(readOnly = true)
+    public List<Vacation> othersAway(String me, LocalDate startDate, LocalDate endDate) {
+        return vacations.findByStartDateLessThanEqualAndEndDateGreaterThanEqual(endDate, startDate)
+                .stream()
+                .filter(v -> !v.getPersonName().equalsIgnoreCase(me))
+                .sorted(Comparator.comparing(Vacation::getStartDate)
+                        .thenComparing(Vacation::getPersonName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    /** Leave overlapping a window, for the team calendar. */
+    @Transactional(readOnly = true)
+    public List<Vacation> overlapping(LocalDate from, LocalDate until) {
+        return vacations.findByStartDateLessThanEqualAndEndDateGreaterThanEqual(until, from);
+    }
+
+    private Vacation requireOwn(String me, Long id) {
+        Vacation vacation = require(id);
+        if (me == null || !vacation.getPersonName().equalsIgnoreCase(me)) {
+            throw new VacationManagementException("That leave is not yours.");
+        }
+        return vacation;
+    }
+
+    private void requireNotPast(LocalDate date, String message) {
+        if (date != null && date.isBefore(LocalDate.now(clock))) {
+            throw new VacationManagementException(message);
+        }
+    }
+
     /** @return the roster name, once everything about the entry has been accepted */
     private String validate(String person, LocalDate startDate, LocalDate endDate,
                             Long ignoringId) {
@@ -123,9 +188,7 @@ public class VacationService implements PersonVacations {
             throw new VacationManagementException("Leave needs somebody to belong to.");
         }
 
-        return properties.getPeople().stream()
-                .filter(name -> name.equalsIgnoreCase(person.trim()))
-                .findFirst()
+        return people.activeName(person)
                 .orElseThrow(() -> new VacationManagementException(
                         "\"" + person + "\" is not on the roster."));
     }

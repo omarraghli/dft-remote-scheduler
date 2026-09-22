@@ -3,6 +3,7 @@ package cires.dft.remotescheduler.web;
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.WeekSchedule;
 import cires.dft.remotescheduler.service.HolidayCalendar;
+import cires.dft.remotescheduler.service.RosterService;
 import cires.dft.remotescheduler.service.PublicHoliday;
 import cires.dft.remotescheduler.service.ScheduleAlreadyExistsException;
 import cires.dft.remotescheduler.service.ScheduleService;
@@ -13,6 +14,7 @@ import cires.dft.remotescheduler.service.WeekPlanException;
 import cires.dft.remotescheduler.service.WeekPlanService;
 import cires.dft.remotescheduler.service.WeekStarts;
 import cires.dft.remotescheduler.solver.NoFeasibleScheduleException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -40,17 +42,20 @@ public class ScheduleViewController {
     private final HolidayCalendar holidays;
     private final VacationCalendar vacations;
     private final WeekPlanService weekPlans;
+    private final RosterService people;
 
     public ScheduleViewController(ScheduleService scheduleService,
                                   RemoteScheduleProperties properties,
                                   HolidayCalendar holidays,
                                   VacationCalendar vacations,
-                                  WeekPlanService weekPlans) {
+                                  WeekPlanService weekPlans,
+                                  RosterService people) {
         this.scheduleService = scheduleService;
         this.properties = properties;
         this.holidays = holidays;
         this.vacations = vacations;
         this.weekPlans = weekPlans;
+        this.people = people;
     }
 
     /**
@@ -65,14 +70,16 @@ public class ScheduleViewController {
     public String index(@RequestParam(required = false)
                         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
                         @AuthenticationPrincipal AppUserPrincipal principal,
+                        HttpServletRequest request,
                         Model model) {
 
         LocalDate shownWeek = WeekStarts.of(week != null ? week : scheduleService.today());
         Optional<WeekSchedule> schedule = scheduleService.findByWeek(shownWeek);
         List<PublicHoliday> weekHolidays = holidays.inWeek(shownWeek);
+        List<String> roster = people.activeNames();
 
-        model.addAttribute("schedule",
-                schedule.map(s -> ScheduleResponse.from(s, properties, holidays)).orElse(null));
+        model.addAttribute("schedule", schedule
+                .map(s -> ScheduleResponse.from(s, roster, properties, holidays)).orElse(null));
         model.addAttribute("shownWeek", shownWeek);
         model.addAttribute("prevWeek", shownWeek.minusWeeks(1));
         model.addAttribute("nextWeek", shownWeek.plusWeeks(1));
@@ -85,9 +92,7 @@ public class ScheduleViewController {
         model.addAttribute("myRosterName", principal == null ? null : principal.getRosterName());
         // Sorted to match the chart's roster, so the empty week's placeholder rows line up
         // with the order people will see once it is generated.
-        model.addAttribute("people", properties.getPeople().stream()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .toList());
+        model.addAttribute("people", roster);
         // The shown week's own quota — a holiday lowers it, and the chart would otherwise flag
         // every row as having missed a target that week never had.
         int quota = holidays.remotesPerPerson(shownWeek);
@@ -117,6 +122,13 @@ public class ScheduleViewController {
         model.addAttribute("myOnSite", me == null ? Set.of() : plan.onSiteFor(me));
         model.addAttribute("canSetPreferences",
                 me != null && !shownWeek.isBefore(WeekStarts.of(scheduleService.today())));
+
+        // Leave is declared by the people taking it, so an admin learns here, not from a flash
+        // message somebody else saw, that a planned week has them remote while away.
+        if (request.isUserInRole("ADMIN")) {
+            model.addAttribute("leaveConflicts",
+                    scheduleService.leaveConflicts(scheduleService.today()));
+        }
 
         return "schedule";
     }
@@ -190,8 +202,8 @@ public class ScheduleViewController {
 
         if (me == null) {
             redirectAttributes.addFlashAttribute("error",
-                    "Your account is not linked to anyone on the roster, so there is nobody to "
-                            + "set days for. An admin can link it at /admin/users.");
+                    "You are not on the schedule, so there are no days to set. An admin can put "
+                            + "you on it on the Équipe page.");
             redirectAttributes.addAttribute("week", target.toString());
             return "redirect:/";
         }

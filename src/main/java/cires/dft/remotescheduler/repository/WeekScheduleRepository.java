@@ -23,4 +23,7 @@ public interface WeekScheduleRepository extends JpaRepository<WeekSchedule, Long
 
     @EntityGraph(attributePaths = "assignments")
     Optional<WeekSchedule> findFirstByOrderByWeekStartDesc();
+
+    @EntityGraph(attributePaths = "assignments")
+    List<WeekSchedule> findByWeekStartGreaterThanEqualOrderByWeekStartAsc(LocalDate weekStart);
 }

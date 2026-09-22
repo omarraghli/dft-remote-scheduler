@@ -1,0 +1,46 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-team-invite
+      author: o.raghli
+      comment: The join link an admin posts in the team chat. Only a hash of the token is kept,
+               so the table is no use to anyone who reads it.
+      changes:
+        - createTable:
+            tableName: team_invite
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_team_invite
+                    nullable: false
+              - column:
+                  name: token_hash
+                  type: VARCHAR(64)
+                  remarks: SHA-256 of the token, hex.
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_team_invite_token_hash
+              - column:
+                  name: created_by
+                  type: VARCHAR(190)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expires_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: revoked_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+      rollback:
+        - dropTable:
+            tableName: team_invite

@@ -11,7 +11,7 @@ fill in a shared spreadsheet.
 
 | Rule | Value | Where |
 |---|---|---|
-| People | 16 | `remote.people` |
+| People | 16 | the Équipe page (`/admin/users`), seeded from `remote.people` |
 | Working days | Lundi – Vendredi | `remote.days` |
 | Remote slots per day | 10 | `remote.slots-per-day` |
 | Remote days per person | exactly 3, fewer in a short week | `remote.remotes-per-person` |
@@ -20,10 +20,10 @@ fill in a shared spreadsheet.
 | Standing closures | none by default | `remote.holidays` |
 | Preferred remote days | any, per week, a wish | the schedule page |
 | On-site days | none, admins only | `/admin/week` |
-| Leave | none by default | `/admin/vacations` |
+| Leave | none by default | `/leave`, declared by each person |
 
-The shape of the week lives in `application.yml`; what changes week to week — the holidays, the
-wishes, who is needed in the office — is edited in the browser. Nothing about the team is
+The shape of the week lives in `application.yml`; what changes — the team, the holidays, the
+wishes, the leave, who is needed in the office — is edited in the browser. Nothing about the team is
 hardcoded in Java.
 
 **Capacity is tight on purpose.** 16 people × 3 days = **48 remote days** against
@@ -138,10 +138,19 @@ effect. Until somebody re-rolls, nothing either page records changes the chart.
 ## Congés
 
 Somebody on leave is not working from home, they are not working. So their days off come out of
-the week rather than being handed to them as remote days, and **`/admin/vacations`** is where an
-admin records who is away and between which two dates. A single day off, a fortnight and anything
-in between are the same entry — a first day and a last day. Weekends and fériés inside a stretch
-look after themselves, and the same person cannot be entered as away twice over the same days.
+the week rather than being handed to them as remote days.
+
+**Everybody declares their own**, at **`/leave`**. A single day off, a fortnight and anything in
+between are the same entry — a first day and a last day. Nobody approves it: the admins are not a
+bottleneck. What stands in for approval is visibility — the same page shows **who is away today**,
+**who is off in the next 30 days**, and a **calendar of the next eight weeks**, one row per person,
+with every day away marked. Saving leave that overlaps somebody else's says so by name, so you
+find out before you book rather than on the day. People can change or remove their own leave
+until it is over, but cannot backdate it or touch anybody else's. Admins record leave for anyone,
+past included, at **`/admin/vacations`**.
+
+Weekends and fériés inside a stretch look after themselves, and the same person cannot be entered
+as away twice over the same days.
 
 Three things follow from one stretch of leave, and they are the same rule seen from three sides:
 
@@ -158,7 +167,51 @@ The Σ column and the red off-quota marking follow that figure rather than the c
 so a row shortened by leave is not flagged as having missed a target it never had.
 
 **If the week was already planned**, the page says so and links to it, exactly as a late férié
-does. Nothing is re-rolled for you.
+does. Because leave is now declared by the person taking it, admins see the same warning on the
+chart and on `/admin/vacations` — every planned week from now on that has somebody remote while
+they are away — whoever entered it. Nothing is re-rolled for you.
+
+---
+
+## The team
+
+**An account is a person.** There is one list, the **Équipe** page (`/admin/users`), and every
+row on it is somebody: their name, their email once they have signed up, their role, and whether
+the schedule plans for them. Somebody on the team who has not signed up yet is a row with a name
+and no email — they are planned all the same, from the day they are listed.
+
+`remote.people` only lists the team on a database where nobody is on the schedule yet; after the
+first start it is never read again, so hiring somebody or losing somebody does not wait for a
+redeploy.
+
+- **Adding** someone takes a name. They are planned from the next week generated and sign up
+  with the join link; give an email as well to hand them a temporary password instead. An email
+  with no name is an account nobody plans for, such as a second admin.
+- **On the schedule** is a switch per row. It is on for the team and off for an admin who is not
+  part of it; only somebody with a name can be on it.
+- The page shows the capacity sum as it stands — people × quota against the week's slots — and
+  warns the moment it no longer fits, since 17 × 3 = 51 against 50 slots leaves no week
+  plannable until the slots are raised.
+- **Somebody leaving** is marked as left (deactivated), not deleted: they can no longer sign in
+  and are not planned, but weeks they were already planned into still show them.
+- **Renaming** is a correction, not a new person: the name is rewritten in past schedules, leave,
+  wishes and on-site days in one go, so an old week never grows a second row.
+
+### The join link
+
+Nobody has to be sent a password. An admin issues a **join link** on the Équipe page and posts
+it in the team chat — the page offers a ready-to-paste message. Whoever opens it picks their own
+name from the team (only people who have not signed up yet are offered), enters their email and
+chooses a password, and is signed straight in. Somebody new who is not listed picks *I'm new* and
+types their name, which puts them on the schedule.
+
+- Only addresses on **`remote.security.join.allowed-domain`** (`cirestechnologies.ma`) are
+  accepted, so a forwarded link is no use outside the company.
+- A link lasts **`remote.security.join.ttl`** (14 days). Issuing a new one retires the old; it can
+  also be revoked outright. Only a hash of it is stored, so it is shown once.
+- One row per name, enforced by the database. Somebody who picked the wrong one is fixed by
+  **Undo sign-up** on their row: the email and password go, the person stays, and the name can
+  be claimed again.
 
 ---
 
@@ -225,15 +278,17 @@ Everything is behind a sign-in. There are two roles:
 | Ask for remote days | for themselves | for anyone |
 | Generate / re-roll | no | yes |
 | Require days on site | no | yes |
-| Record leave | no | yes |
+| Declare leave | their own | anyone's |
+| See who is away | yes | yes |
 | Manage holidays | no | yes |
-| Manage accounts | no | yes |
+| Manage the team | no | yes |
 
 A read-only user simply doesn't see the buttons they can't use, and the server refuses the
 requests anyway — the page hiding them is a courtesy, not the control.
 
-**Admins create accounts** at `/admin/users`: an email, a role, and optionally which person on
-the roster they are. The app generates a temporary password and **shows it once** — it is stored
+**For the team, use the join link** (see [The team](#the-team)) — nobody has to be sent a
+password. **Admins can also hand out a temporary password** on the Équipe page, by giving a
+person an email. The app generates the password and **shows it once** — it is stored
 only as a BCrypt hash and cannot be recovered, so copy it before leaving the page. The person is
 held on the change-password screen from the moment they sign in until they replace it; no other
 page will load until they do.
@@ -243,11 +298,13 @@ accounts, change roles, and delete outright. Three things are refused: acting on
 account, and anything that would leave **no active admin** — the last admin cannot be demoted,
 deactivated or deleted, because there would be no way back in.
 
-Linking an account to a roster name is what lets the chart mark **your own row**.
+Being on the schedule is what lets the chart mark **your own row**, and what lets you declare
+your own leave.
 
 ### The first admin
 
-On an empty database one admin is created so there is someone to sign in as. Configure it with
+When no admin can sign in — an empty database, or one where the team is listed but nobody has
+signed up — one admin is created so there is someone to sign in as. Configure it with
 `REMOTE_ADMIN_EMAIL` and `REMOTE_ADMIN_PASSWORD`, or leave the password unset and a random one
 is generated and printed to the log **once** at startup. Either way it is temporary and must be
 replaced at first sign-in.
@@ -301,7 +358,8 @@ A week that already has a schedule shows **Re-roll** and **Export .xlsx** instea
 overwrites: it refuses and says so, and re-rolling is a separate, explicit button. Same rule the
 Thursday job follows, so nothing the team is already using gets discarded by a stray click.
 
-**Every page wears the same bar**: the mark, the sections — Chart, Semaine, Fériés, Accounts,
+**Every page wears the same bar**: the mark, the sections — Chart, Semaine, Congés, Fériés,
+Équipe,
 with the one you are on marked and the ones you cannot open simply absent — then the theme switch,
 who you are signed in as, and the way out. The section links carry the week you are looking at, so
 stepping from the chart to the week grid and back stays on that week instead of snapping to today.
@@ -408,12 +466,12 @@ milliseconds.
 
 ```
 solver/      ScheduleSolver, WeekPatterns — pure algorithm, no Spring or JPA
-domain/      WeekSchedule, RemoteAssignment, AppUser, Holiday, RemotePreference,
-             OnSiteDay, Vacation — JPA entities
+domain/      WeekSchedule, RemoteAssignment, AppUser (a person), TeamInvite, Holiday,
+             RemotePreference, OnSiteDay, Vacation — JPA entities
 repository/  WeekScheduleRepository
-service/     ScheduleService (solve + persist), WeekPlanService, HolidayCalendar,
-             HolidayService, HolidaySeed, VacationCalendar, VacationService,
-             ScheduleExcelExporter, WeekStarts
+service/     ScheduleService (solve + persist), WeekPlanService, RosterService, PersonSeed,
+             TeamInviteService, HolidayCalendar, HolidayService, HolidaySeed,
+             VacationCalendar, VacationService, ScheduleExcelExporter, WeekStarts
 scheduler/   WeeklyScheduleJob — the Thursday cron
 web/         REST controller, page controller, DTO, problem-detail handler
 config/      RemoteScheduleProperties, PublicHolidayProperties — the YAML binding
@@ -421,7 +479,9 @@ config/      RemoteScheduleProperties, PublicHolidayProperties — the YAML bind
 resources/db/changelog/   Liquibase master + change files
 templates/schedule.html   the page (Thymeleaf)
 templates/fragments/      the head, bar and footer every page shares
-templates/admin/          accounts, holidays, leave and the week grid
+templates/leave.html      everybody's leave, and your own
+templates/join.html       where the join link lands
+templates/admin/          the team, holidays, leave and the week grid
 ```
 
 A schedule is always keyed by the **Monday its week starts on** (`WeekStarts`), so any date in a

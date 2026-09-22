@@ -7,6 +7,7 @@ import cires.dft.remotescheduler.service.HolidayCalendar;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,7 @@ public record ScheduleResponse(
      * configuration so a day nobody was assigned to still appears, empty, rather than vanishing.
      */
     public static ScheduleResponse from(WeekSchedule schedule,
+                                        Collection<String> roster,
                                         RemoteScheduleProperties props,
                                         HolidayCalendar holidays) {
 
@@ -91,20 +93,20 @@ public record ScheduleResponse(
                 total,
                 holidays.remotesPerPerson(schedule.getWeekStart()),
                 days,
-                buildRoster(props, remoteOnDay),
+                buildRoster(roster, remoteOnDay),
                 schedule.remoteDaysPerPerson());
     }
 
     /**
-     * Everyone who should appear as a row: the configured roster, plus anyone the stored week
+     * Everyone who should appear as a row: the team as it stands, plus anyone the stored week
      * assigned who has since left it, so an older schedule still renders in full. Sorted by name
      * because the page is scanned by looking yourself up.
      */
-    private static List<PersonRow> buildRoster(RemoteScheduleProperties props,
+    private static List<PersonRow> buildRoster(Collection<String> team,
                                                List<Set<String>> remoteOnDay) {
 
         Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        names.addAll(props.getPeople());
+        names.addAll(team);
         remoteOnDay.forEach(names::addAll);
 
         List<PersonRow> roster = new ArrayList<>(names.size());

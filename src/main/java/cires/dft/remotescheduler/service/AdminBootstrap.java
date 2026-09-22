@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,11 +18,12 @@ import java.time.Clock;
 /**
  * Creates the first admin on an empty database, so there is someone to sign in as.
  *
- * <p>Runs only when the table has no accounts at all. If no password is configured one is
+ * <p>Runs only when nobody can sign in as an admin. If no password is configured one is
  * generated and printed to the log once — better than a default that is the same everywhere.
  * Either way it is temporary and has to be replaced at first sign-in.
  */
 @Component
+@Order(0)
 public class AdminBootstrap implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AdminBootstrap.class);
@@ -44,10 +46,18 @@ public class AdminBootstrap implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (users.count() > 0) return;
+        // Not "no accounts at all": the team is listed before anybody signs up, and a roster
+        // of people without passwords is still nobody who can sign in.
+        if (users.existsByRoleAndActiveTrueAndPasswordHashIsNotNull(Role.ADMIN)) return;
 
         String email = AppUser.normaliseEmail(properties.getBootstrap().getEmail());
         String configured = properties.getBootstrap().getPassword();
+
+        if (users.existsByEmail(email)) {
+            log.warn("No active admin can sign in, and {} already has an account, so none was "
+                    + "created. Set remote.security.bootstrap.email to a free address.", email);
+            return;
+        }
 
         boolean generated = configured == null || configured.isBlank();
         String password = generated ? TemporaryPasswords.generate() : configured;
@@ -59,7 +69,7 @@ public class AdminBootstrap implements ApplicationRunner {
             log.warn("""
                     
                     ┌─────────────────────────────────────────────────────────────┐
-                     No accounts existed, so an admin was created:
+                     No admin could sign in, so one was created:
                     
                        email    : {}
                        password : {}
@@ -69,7 +79,7 @@ public class AdminBootstrap implements ApplicationRunner {
                     └─────────────────────────────────────────────────────────────┘
                     """, email, password);
         } else {
-            log.info("No accounts existed, so an admin was created for {} using the configured "
+            log.info("No admin could sign in, so one was created for {} using the configured "
                     + "password. It must be changed at first sign-in.", email);
         }
     }

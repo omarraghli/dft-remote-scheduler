@@ -715,7 +715,38 @@ body {
 .foot a { color: var(--ink-55); text-decoration: none; border-bottom: 1px solid var(--rule); }
 .foot a:hover { color: var(--accent-ink); border-color: var(--accent); }
 .foot-sep { opacity: .5; }
-.kbd-hint { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+.kbd-hint { display: inline-flex; align-items: center; gap: 4px; }
+
+/* The maker's mark: quiet until you look for it, and the heart is the only thing on the page
+   that moves on its own. */
+.signature { display: inline-flex; align-items: baseline; gap: 4px; }
+.foot .signature { margin-left: auto; }
+.signature-name { color: var(--ink-55); font-weight: 550; }
+.signature:hover .signature-name { color: var(--accent-ink); }
+
+.heart {
+    display: inline-block;
+    color: var(--accent);
+    transform-origin: center 60%;
+    animation: heartbeat 2.4s ease-in-out infinite;
+}
+
+.signature:hover .heart { color: var(--err); animation-duration: .9s; }
+
+@keyframes heartbeat {
+    0%, 60%, 100% { transform: scale(1); }
+    10%           { transform: scale(1.22); }
+    20%           { transform: scale(.96); }
+    30%           { transform: scale(1.14); }
+}
+
+.gate > .signature {
+    display: flex;
+    justify-content: center;
+    margin-top: 28px;
+    font-size: 11.5px;
+    color: var(--ink-35);
+}
 
 kbd {
     display: inline-block;
@@ -762,7 +793,7 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
+    * { transition: none !important; animation: none !important; }
 }
 
 /* ── Signed-in identity, in the top bar ──────────────────────────────────── */
@@ -994,6 +1025,7 @@ body.centred {
 .u-email { display: flex; align-items: center; gap: 8px; }
 .u-roster, .u-seen { color: var(--ink-55); }
 .u-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.u-actions .btn { white-space: nowrap; }
 
 .pill-warn { border-color: var(--accent); color: var(--accent-ink); }
 
@@ -1095,7 +1127,13 @@ a.pill-warn:hover { background: var(--accent-bg); }
 .pick input { accent-color: var(--accent); }
 .pick-site input { accent-color: var(--ink-55); }
 
-/* The same choice on the schedule page, where it is one person picking their own week. */
+/* The same choice on the schedule page, where it is one person picking their own week. It
+   leads the page, so it keeps clear of the week strip above it. */
+.prefs { margin-top: 24px; }
+.prefs .row-form { align-items: center; gap: 12px 22px; }
+.prefs .row-form .btn { margin-left: auto; }
+
+
 .pick-day {
     display: flex;
     align-items: center;
@@ -1124,6 +1162,105 @@ a.pill-warn:hover { background: var(--accent-bg); }
     background: var(--ink-55);
 }
 .pick-cell.is-holiday { opacity: .45; }
+
+/* ── Équipe page ─────────────────────────────────────────────────────────── */
+
+/* .field and friends set display, which would otherwise beat the attribute. */
+[hidden] { display: none !important; }
+
+.rename { display: flex; align-items: center; gap: 6px; margin: 0; }
+.rename input {
+    width: 130px;
+    padding: 6px 9px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
+}
+
+.rename input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+/* Save appears once the name has been edited, not on all sixteen rows at rest. */
+.rename .btn { visibility: hidden; }
+.rename.is-dirty .btn, .rename input:placeholder-shown ~ .btn { visibility: visible; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--accent); margin: 0; }
+.row-form .field-narrow { flex: 0 1 110px; }
+.row-form .check { align-self: center; padding-bottom: 2px; }
+
+.panel-lead { margin: 0 0 12px; font-size: 13.5px; color: var(--ink-80); }
+.actions-left { justify-content: flex-start; }
+.muted { color: var(--ink-35); }
+.secret-link { font-size: 15px; word-break: break-all; }
+.secret-note .btn { margin-right: 6px; }
+
+/* ── Congés page ─────────────────────────────────────────────────────────── */
+
+.listing-mine { margin-top: 16px; }
+
+.away-lists {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 8px 32px;
+    margin: 28px 0 20px;
+}
+
+.away-list { margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+.away-list li { padding: 5px 0; border-bottom: 1px solid var(--rule-soft); }
+.away-list li span { color: var(--ink-55); }
+.away-list li.is-me b { color: var(--accent-ink); }
+
+/* Eight weeks side by side scroll sideways on a phone rather than squashing the days. */
+.leave-cal-wrap { overflow-x: auto; padding-bottom: 8px; }
+
+.leave-cal { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.leave-cal thead th {
+    padding: 0 6px 8px;
+    border-bottom: 1.5px solid var(--ink);
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.leave-cal thead th a { color: var(--ink-80); text-decoration: none; }
+.leave-cal thead th a:hover { color: var(--accent-ink); }
+.leave-cal thead small { display: block; font-weight: 400; color: var(--ink-35); }
+
+.leave-cal .lc-name {
+    width: 140px;
+    padding: 6px 12px 6px 0;
+    text-align: left;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.leave-cal td { padding: 6px; }
+.leave-cal tbody tr { border-bottom: 1px solid var(--rule-soft); }
+.leave-cal tbody tr:hover { background: var(--rule-soft); }
+.leave-cal tr.is-me { background: var(--accent-bg); }
+.leave-cal .is-current { background: var(--accent-bg); }
+
+.lc-days { display: flex; gap: 3px; }
+
+.lc-day {
+    display: block;
+    width: 11px;
+    height: 14px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+.lc-day.away { background: var(--err); box-shadow: none; opacity: .85; }
+
+.lc-day.holiday {
+    box-shadow: none;
+    background: repeating-linear-gradient(135deg, var(--ink-35) 0 2px, transparent 2px 4px);
+}
+
+.legend .lc-day { display: inline-block; width: 11px; height: 11px; }
 
 @media (max-width: 760px) {
     .users thead, .listing thead { display: none; }

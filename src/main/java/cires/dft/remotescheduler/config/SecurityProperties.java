@@ -2,6 +2,8 @@ package cires.dft.remotescheduler.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /** Security settings, under {@code remote.security.*}. */
 @ConfigurationProperties(prefix = "remote.security")
 public class SecurityProperties {
@@ -15,6 +17,38 @@ public class SecurityProperties {
      * accepted unless you deliberately configure a token.
      */
     private String serviceToken = "";
+
+    /** The team join link. */
+    private Join join = new Join();
+
+    public static class Join {
+
+        /**
+         * The only email domain the join page accepts. The link ends up in a group chat, so this
+         * is what keeps a forwarded copy from being any use outside the company. Empty accepts
+         * any address.
+         */
+        private String allowedDomain = "cirestechnologies.ma";
+
+        /** How long a link works for. Long enough for everybody to get round to it. */
+        private Duration ttl = Duration.ofDays(14);
+
+        public String getAllowedDomain() {
+            return allowedDomain;
+        }
+
+        public void setAllowedDomain(String allowedDomain) {
+            this.allowedDomain = allowedDomain;
+        }
+
+        public Duration getTtl() {
+            return ttl;
+        }
+
+        public void setTtl(Duration ttl) {
+            this.ttl = ttl;
+        }
+    }
 
     public static class Bootstrap {
 
@@ -50,6 +84,14 @@ public class SecurityProperties {
 
     public void setBootstrap(Bootstrap bootstrap) {
         this.bootstrap = bootstrap;
+    }
+
+    public Join getJoin() {
+        return join;
+    }
+
+    public void setJoin(Join join) {
+        this.join = join;
     }
 
     public String getServiceToken() {
