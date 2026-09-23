@@ -58,6 +58,10 @@
             <button type="submit" class="btn btn-primary">Add</button>
         </form>
 
+        <p class="form-hint">Enter the days you are off, not the day you come back: off Monday
+            to Friday and back on Monday means <b>Monday → Friday</b>. The day back is an office
+            day automatically, and weekends change nothing.</p>
+
         <table class="listing listing-mine" th:unless="${#lists.isEmpty(mine)}">
             <tbody>
             <tr th:each="v : ${mine}" th:classappend="${v.over} ? 'is-inactive' : ''">
