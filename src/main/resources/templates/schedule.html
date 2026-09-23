@@ -233,12 +233,13 @@
             </thead>
             <tbody>
             <tr th:each="person : ${people}">
+                <!--/* get(), not [person]: SpEL reads a bare name in brackets as the literal key. */-->
                 <th class="c-name" th:text="${person}">Sara</th>
                 <td class="c-cell" th:each="name, day : ${dayNames}"
                     th:classappend="(${away.containsKey(person)
-                                      and away[person].contains(day.index)} ? 'is-away ' : '')
+                                      and away.get(person).contains(day.index)} ? 'is-away ' : '')
                                   + (${onSite.containsKey(person)
-                                      and onSite[person].contains(day.index)} ? 'is-onsite' : '')">
+                                      and onSite.get(person).contains(day.index)} ? 'is-onsite' : '')">
                     <span class="blk"></span>
                 </td>
                 <td class="c-total num">–</td>

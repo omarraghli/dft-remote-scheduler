@@ -8,6 +8,7 @@ import cires.dft.remotescheduler.service.ScheduleService;
 import cires.dft.remotescheduler.service.WeekPlanService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import cires.dft.remotescheduler.service.VacationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +43,7 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
     private static final LocalDate QUIET_WEEK = LocalDate.of(2030, 3, 4);
 
     @Autowired private MockMvc mvc;
+    @Autowired private VacationService vacations;
     @Autowired private ScheduleService scheduleService;
     @Autowired private WeekPlanService weekPlans;
 
@@ -171,5 +173,21 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
                 .andExpect(content().string(containsString("data-theme-set")))
                 .andExpect(content().string(containsString("href=\"/logout\"")))
                 .andExpect(content().string(containsString(activeLink)));
+    }
+
+    @Test
+    @DisplayName("a week nobody has generated still renders when somebody is away in it")
+    void emptyWeekWithLeaveRenders() throws Exception {
+        LocalDate week = LocalDate.of(2031, 6, 2);
+        var leave = vacations.add("Sara", week, week.plusDays(2));
+
+        try {
+            mvc.perform(get("/").param("week", week.toString())
+                            .with(user("reader@cires.ma").roles("USER")))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("is-away")));
+        } finally {
+            vacations.delete(leave.getId());
+        }
     }
 }
