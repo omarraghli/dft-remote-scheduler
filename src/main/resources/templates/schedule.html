@@ -30,17 +30,14 @@
         <h2 class="panel-title">Mes jours
             <span class="panel-week" th:text="'— semaine du ' + ${weekRange}">— semaine du 12 – 16 oct. 2026</span></h2>
 
-        <p class="prefs-keys">
-            <span><i class="seg-key seg-key-remote"></i><b>Remote</b> a wish — the draw decides</span>
-            <span><i class="seg-key seg-key-site"></i><b>Bureau</b> a promise — never planned remote that day</span>
-        </p>
+        <p class="prefs-lead">Tick what matters to you this week and leave the rest — a day with
+            nothing ticked can go either way.</p>
 
-        <form method="post" th:action="@{/preferences}">
+        <form method="post" th:action="@{/preferences}" class="prefs-form">
             <input type="hidden" name="week" th:value="${shownWeek}">
 
             <div class="day-cards">
-                <div class="day-card" role="radiogroup" th:each="name, day : ${dayNames}"
-                     th:aria-label="${name} + ' ' + ${dayDates[day.index]}"
+                <div class="day-card" th:each="name, day : ${dayNames}"
                      th:with="i=${day.index},
                               holiday=${holidayNames.containsKey(day.index)},
                               off=${myAway.contains(day.index)},
@@ -48,7 +45,8 @@
                               back=${returnDays.containsKey(myRosterName)
                                      and returnDays[myRosterName] == day.index},
                               site=${myOnSite.contains(day.index)},
-                              wish=${myPreferred.contains(day.index)}">
+                              wish=${myPreferred.contains(day.index)}"
+                     th:classappend="${holiday or off} ? 'is-closed' : ''">
 
                     <div class="dc-head">
                         <span class="dc-day" th:text="${name}">Lundi</span>
@@ -56,29 +54,27 @@
                     </div>
 
                     <p class="dc-locked" th:if="${holiday}" th:text="${holidayNames[i]}">Marche Verte</p>
-                    <p class="dc-locked" th:if="${!holiday and off}">congé</p>
+                    <p class="dc-locked" th:if="${!holiday and off}">On leave</p>
                     <p class="dc-locked is-site" th:if="${!holiday and !off and pinned}"
-                       title="Required by an admin — ask them to lift it">Bureau · set by an admin</p>
+                       title="An admin needs you in that day — ask them to lift it">
+                        <b>Office</b> required by an admin</p>
                     <p class="dc-locked is-site" th:if="${!holiday and !off and !pinned and back}"
-                       title="The first day back from leave is always an office day">Bureau · back from leave</p>
+                       title="The first day back from leave is always an office day">
+                        <b>Office</b> back from leave</p>
 
-                    <div class="seg" th:unless="${holiday or off or pinned or back}">
-                        <label class="seg-opt seg-remote">
-                            <input type="radio" th:name="'d' + ${i}" value="remote"
+                    <th:block th:unless="${holiday or off or pinned or back}">
+                        <label class="dc-opt dc-remote">
+                            <input type="checkbox" name="preferred" th:value="${i}"
                                    th:checked="${wish and !site}">
-                            <span>Remote</span>
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5V13h-4V9.5h-3V13h-4z"/></svg>
+                            <span><b>Remote</b><small>if possible</small></span>
                         </label>
-                        <label class="seg-opt seg-none" title="No preference">
-                            <input type="radio" th:name="'d' + ${i}" value="none"
-                                   th:checked="${!wish and !site}">
-                            <span>Any</span>
+                        <label class="dc-opt dc-site">
+                            <input type="checkbox" name="site" th:value="${i}" th:checked="${site}">
+                            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13.5V2.5h7v11M10 6h3v7.5M5 5h1M7 5h1M5 7.5h1M7 7.5h1M5 10h1M7 10h1M1.5 13.5h13"/></svg>
+                            <span><b>Office</b><small>for sure</small></span>
                         </label>
-                        <label class="seg-opt seg-site">
-                            <input type="radio" th:name="'d' + ${i}" value="site"
-                                   th:checked="${site}">
-                            <span>Bureau</span>
-                        </label>
-                    </div>
+                    </th:block>
                 </div>
             </div>
 
@@ -98,15 +94,15 @@
         <p class="panel-note panel-usual" th:if="${!followsUsual and !#lists.isEmpty(myUsual)}">
             Changed for this week only — your usual remote days are
             <b th:text="${#strings.listJoin(myUsualNames, ', ')}">Mardi, Jeudi</b>.
-            Setting every day to <i>Any</i> goes back to them.</p>
+            Unticking every Remote goes back to them.</p>
 
-        <p class="panel-note">Asking for no remote days, or for all five, still gets you
-            <b th:text="${remotesPerPerson}">3</b>. Bureau days come out of those: the schedule
-            plans your remote days around them.</p>
+        <p class="panel-note">You get <b th:text="${remotesPerPerson}">3</b> remote days whatever
+            you tick. <b>Remote</b> is a wish the draw may not grant when a day is full;
+            <b>Office</b> is kept — you are never planned remote that day.</p>
 
-        <p class="panel-note" th:if="${schedule != null}">This week is already planned. A Bureau
-            day takes effect now — if you were remote that day, it comes off. Remote wishes count
-            the next time an admin re-rolls it.</p>
+        <p class="panel-note" th:if="${schedule != null}">This week is already planned. An
+            <b>Office</b> day applies straight away: if you were remote that day, it comes off.
+            Remote wishes count the next time an admin re-rolls the week.</p>
       </div>
     </section>
 
@@ -361,6 +357,19 @@
             if (e.key === 'ArrowRight') location.href = next;
         });
     })();
+</script>
+
+<script>
+    // A day is remote or office, never both: ticking one clears the other. Without this the
+    // form still works — the server lets Office win.
+    document.querySelectorAll('.day-card').forEach(function (card) {
+        var boxes = card.querySelectorAll('.dc-opt input');
+        boxes.forEach(function (box) {
+            box.addEventListener('change', function () {
+                if (box.checked) boxes.forEach(function (other) { if (other !== box) other.checked = false; });
+            });
+        });
+    });
 </script>
 
 <script th:inline="javascript" sec:authorize="hasRole('ADMIN')">

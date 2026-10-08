@@ -213,7 +213,7 @@ public class ScheduleService {
             setWeekPlan(monday, me, preferred, onSite, myUsername);
         } catch (UnplannableWeekException e) {
             // Wishes never make a week unplannable, so the office days did.
-            throw new UnplannableWeekException("Bureau on " + dayNames(onSite)
+            throw new UnplannableWeekException("Office on " + dayNames(onSite)
                     + " leaves no way to plan the week within the rules — your remote days, the"
                     + " limit on days in a row and the slots cannot all hold. Nothing was saved;"
                     + " try other days.");

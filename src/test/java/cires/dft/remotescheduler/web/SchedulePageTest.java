@@ -81,7 +81,7 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
             mvc.perform(get("/").param("week", QUIET_WEEK.toString()).with(user(account)))
                     .andExpect(status().isOk())
                     .andExpect(content().string(containsString("action=\"/preferences\"")))
-                    .andExpect(content().string(containsString("a promise")));
+                    .andExpect(content().string(containsString("for sure")));
 
             mvc.perform(post("/preferences").with(user(account)).with(csrf())
                             .param("week", QUIET_WEEK.toString())

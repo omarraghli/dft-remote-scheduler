@@ -213,7 +213,7 @@ public class ScheduleViewController {
                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
                               @RequestParam(required = false) Set<Integer> preferred,
                               @RequestParam(defaultValue = "false") boolean usual,
-                              @RequestParam Map<String, String> params,
+                              @RequestParam(required = false) Set<Integer> site,
                               @AuthenticationPrincipal AppUserPrincipal principal,
                               RedirectAttributes redirectAttributes) {
 
@@ -228,16 +228,11 @@ public class ScheduleViewController {
             return "redirect:/";
         }
 
-        // Each day posts as d0..d4 = remote | none | site; a bare list of preferred days is
-        // still understood.
+        // A day ticked both ways is an office day: the page clears the other box as you tick,
+        // and without its script the promise is the one to keep.
+        Set<Integer> office = site == null ? Set.of() : site;
         Set<Integer> remote = new TreeSet<>(preferred == null ? Set.of() : preferred);
-        Set<Integer> site = new TreeSet<>();
-        for (int day = 0; day < properties.getDays().size(); day++) {
-            String choice = params.get("d" + day);
-            if ("remote".equals(choice)) remote.add(day);
-            if ("site".equals(choice)) site.add(day);
-        }
-        remote.removeAll(site);
+        remote.removeAll(office);
 
         String when = WeekLabels.range(target, properties.getDays().size());
 
@@ -247,7 +242,7 @@ public class ScheduleViewController {
             if (usual) weekPlans.setUsual(me, remote);
 
             ScheduleService.OwnWeekResult result = scheduleService.setOwnWeek(
-                    target, me, principal.getUsername(), remote, site);
+                    target, me, principal.getUsername(), remote, office);
 
             StringBuilder saved = new StringBuilder(usual
                     ? "Saved as your usual remote days, for " + when
