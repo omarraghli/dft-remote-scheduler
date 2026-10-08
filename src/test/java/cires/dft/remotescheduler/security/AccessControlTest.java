@@ -153,6 +153,23 @@ class AccessControlTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    @DisplayName("a read-only user cannot empty a cell on the chart or mark anybody absent")
+    void userCannotEditCells() throws Exception {
+        mvc.perform(post("/admin/week/empty").with(user("reader@cires.ma").roles("USER")).with(csrf())
+                        .param("week", "2029-01-08")
+                        .param("person", "Sara")
+                        .param("day", "0"))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(post("/admin/week/absent").with(user("reader@cires.ma").roles("USER")).with(csrf())
+                        .param("week", "2029-01-08")
+                        .param("person", "Sara")
+                        .param("from", "2029-01-08")
+                        .param("to", "2029-01-08"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("a read-only user cannot record anybody's leave")
     void userCannotRecordLeave() throws Exception {
         mvc.perform(get("/admin/vacations").with(user("reader@cires.ma").roles("USER")))

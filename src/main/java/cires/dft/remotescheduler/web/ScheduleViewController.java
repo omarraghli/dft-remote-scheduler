@@ -86,6 +86,9 @@ public class ScheduleViewController {
         model.addAttribute("currentWeek", WeekStarts.of(scheduleService.today()));
         model.addAttribute("weekNumber", shownWeek.get(WeekFields.ISO.weekOfWeekBasedYear()));
         model.addAttribute("weekRange", WeekLabels.range(shownWeek, properties.getDays().size()));
+        model.addAttribute("weekRelative",
+                WeekLabels.relative(shownWeek, WeekStarts.of(scheduleService.today())));
+        model.addAttribute("dayDates", WeekLabels.dayDates(shownWeek, properties.getDays().size()));
         model.addAttribute("dayNames", properties.getDays());
         model.addAttribute("todayIndex", todayIndex(shownWeek));
         // Lets the chart mark the signed-in person's own row.
@@ -119,6 +122,12 @@ public class ScheduleViewController {
         // whose leave leaves no room for the usual three.
         model.addAttribute("expected", scheduleService.expectedRemoteDays(shownWeek));
         model.addAttribute("myPreferred", me == null ? Set.of() : plan.preferredFor(me));
+        Set<Integer> myUsual = me == null ? Set.of() : weekPlans.usualFor(me);
+        model.addAttribute("myUsual", myUsual);
+        model.addAttribute("myUsualNames", myUsual.stream()
+                .map(day -> properties.getDays().get(day)).toList());
+        model.addAttribute("followsUsual",
+                !myUsual.isEmpty() && !weekPlans.hasOwnWishes(me, shownWeek));
         model.addAttribute("myOnSite", me == null ? Set.of() : plan.onSiteFor(me));
         model.addAttribute("canSetPreferences",
                 me != null && !shownWeek.isBefore(WeekStarts.of(scheduleService.today())));
@@ -194,6 +203,7 @@ public class ScheduleViewController {
     public String preferences(@RequestParam(required = false)
                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
                               @RequestParam(required = false) Set<Integer> preferred,
+                              @RequestParam(defaultValue = "false") boolean usual,
                               @AuthenticationPrincipal AppUserPrincipal principal,
                               RedirectAttributes redirectAttributes) {
 
@@ -208,17 +218,26 @@ public class ScheduleViewController {
             return "redirect:/";
         }
 
+        Set<Integer> days = preferred == null ? Set.of() : preferred;
+        String when = WeekLabels.range(target, properties.getDays().size());
+
         try {
-            scheduleService.setWeekPlan(target, me,
-                    preferred == null ? Set.of() : preferred,
+            // The template goes first, so the week saved next equals it and stores nothing of
+            // its own — it then keeps following the usual days rather than a copy of them.
+            if (usual) weekPlans.setUsual(me, days);
+
+            scheduleService.setWeekPlan(target, me, days,
                     weekPlans.forWeek(target).onSiteFor(me),
                     principal.getUsername());
 
+            String saved = usual
+                    ? "Saved as your usual days, for " + when + " and every week you do not change."
+                    : "Saved for " + when + ".";
             redirectAttributes.addFlashAttribute("message",
                     scheduleService.findByWeek(target).isPresent()
-                            ? "Saved — this week is already planned, so it takes a re-roll for "
+                            ? saved + " This week is already planned, so it takes a re-roll for "
                                     + "them to count."
-                            : "Saved. They are taken into account the next time this week is "
+                            : saved + " They are taken into account the next time this week is "
                                     + "planned.");
 
         } catch (WeekPlanException | IllegalArgumentException e) {

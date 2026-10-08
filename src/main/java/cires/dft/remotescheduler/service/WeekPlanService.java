@@ -3,8 +3,10 @@ package cires.dft.remotescheduler.service;
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
 import cires.dft.remotescheduler.domain.OnSiteDay;
 import cires.dft.remotescheduler.domain.RemotePreference;
+import cires.dft.remotescheduler.domain.UsualPreference;
 import cires.dft.remotescheduler.repository.OnSiteDayRepository;
 import cires.dft.remotescheduler.repository.RemotePreferenceRepository;
+import cires.dft.remotescheduler.repository.UsualPreferenceRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,17 +38,20 @@ public class WeekPlanService {
     private static final Logger log = LoggerFactory.getLogger(WeekPlanService.class);
 
     private final RemotePreferenceRepository preferences;
+    private final UsualPreferenceRepository usual;
     private final OnSiteDayRepository onSiteDays;
     private final RemoteScheduleProperties properties;
     private final RosterService people;
     private final Clock clock;
 
     public WeekPlanService(RemotePreferenceRepository preferences,
+                           UsualPreferenceRepository usual,
                            OnSiteDayRepository onSiteDays,
                            RemoteScheduleProperties properties,
                            RosterService people,
                            Clock clock) {
         this.preferences = preferences;
+        this.usual = usual;
         this.onSiteDays = onSiteDays;
         this.properties = properties;
         this.people = people;
@@ -63,6 +68,15 @@ public class WeekPlanService {
                     .add(preference.getDayIndex());
         }
 
+        // Somebody who said nothing about this week is asking for their usual days. Done here
+        // and nowhere else, so the solver, the chart and the grid all read the same wishes.
+        Set<String> spokeForThisWeek = Set.copyOf(preferred.keySet());
+        for (UsualPreference day : usual.findAll()) {
+            if (spokeForThisWeek.contains(day.getPersonName())) continue;
+            preferred.computeIfAbsent(day.getPersonName(), k -> new TreeSet<>())
+                    .add(day.getDayIndex());
+        }
+
         Map<String, Set<Integer>> onSite = new HashMap<>();
         for (OnSiteDay day : onSiteDays.findByWeekStart(monday)) {
             onSite.computeIfAbsent(day.getPersonName(), k -> new TreeSet<>())
@@ -70,6 +84,43 @@ public class WeekPlanService {
         }
 
         return new WeekPlan(preferred, onSite);
+    }
+
+    /** The days this person asks for every week they do not say otherwise. */
+    @Transactional(readOnly = true)
+    public Set<Integer> usualFor(String person) {
+        Set<Integer> days = new TreeSet<>();
+        for (UsualPreference day : usual.findByPersonName(person)) days.add(day.getDayIndex());
+        return days;
+    }
+
+    /** Whether this person's wishes for this week are their own rather than their usual days. */
+    @Transactional(readOnly = true)
+    public boolean hasOwnWishes(String person, LocalDate week) {
+        return preferences.findByWeekStart(WeekStarts.of(week)).stream()
+                .anyMatch(p -> p.getPersonName().equals(person));
+    }
+
+    /**
+     * Replaces somebody's usual days. Every week they have not set on their own follows the new
+     * ones at once, past weeks included — those are already planned, and a wish only matters
+     * when a week is rolled.
+     *
+     * @throws WeekPlanException if the person or the days are not something to accept
+     */
+    @Transactional
+    public void setUsual(String person, Set<Integer> days) {
+        String rosterName = requireRosterName(person);
+        Set<Integer> checked = requireDays(days);
+
+        usual.deleteByPersonName(rosterName);
+        usual.flush();
+        for (int dayIndex : checked) {
+            usual.save(new UsualPreference(rosterName, dayIndex, clock.instant()));
+        }
+        usual.flush();
+
+        log.info("{} usually wants {}", rosterName, names(checked));
     }
 
     /**
@@ -110,7 +161,11 @@ public class WeekPlanService {
 
         for (String person : people) {
             String rosterName = requireRosterName(person);
-            wanted.put(rosterName, requireDays(plan.preferredFor(person)));
+            Set<Integer> asked = requireDays(plan.preferredFor(person));
+            // The usual days are not copied into the week: stored nowhere, the week keeps
+            // following them if they change later. This is also what lets the admin grid, which
+            // posts everybody's wishes back, save without freezing anybody's template in place.
+            wanted.put(rosterName, asked.equals(usualFor(rosterName)) ? Set.of() : asked);
             required.put(rosterName, requireDays(plan.onSiteFor(person)));
         }
 

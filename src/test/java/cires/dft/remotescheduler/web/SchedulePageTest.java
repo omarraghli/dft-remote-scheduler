@@ -97,6 +97,41 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    @DisplayName("ticking 'every week' makes the days the usual ones, and later weeks show them")
+    void usualDaysCarryForward() throws Exception {
+        AppUserPrincipal account = principal("usual@cires.ma", "Rajae");
+
+        try {
+            mvc.perform(post("/preferences").with(user(account)).with(csrf())
+                            .param("week", QUIET_WEEK.toString())
+                            .param("preferred", "1")
+                            .param("preferred", "3")
+                            .param("usual", "true"))
+                    .andExpect(flash().attribute("message", containsString("usual days")));
+
+            assertThat(weekPlans.usualFor("Rajae")).containsExactly(1, 3);
+
+            mvc.perform(get("/").param("week", QUIET_WEEK.plusWeeks(2).toString()).with(user(account)))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString("Following your usual days")))
+                    .andExpect(content().string(containsString("Mardi, Jeudi")));
+
+        } finally {
+            weekPlans.setUsual("Rajae", Set.of());
+        }
+    }
+
+    @Test
+    @DisplayName("the week strip says how far away the shown week is, and the days carry dates")
+    void theWeekIsSpelledOut() throws Exception {
+        mvc.perform(get("/").param("week", QUIET_WEEK.toString())
+                        .with(user("reader@cires.ma").roles("USER")))
+                .andExpect(content().string(containsString("weeks</span>")))
+                .andExpect(content().string(containsString("4 – 8 mars 2030")))
+                .andExpect(content().string(containsString("4 mars")));
+    }
+
+    @Test
     @DisplayName("an account linked to nobody is not asked which days it wants")
     void anUnlinkedAccountIsNotAsked() throws Exception {
         AppUserPrincipal account = principal("nobody@cires.ma", null);

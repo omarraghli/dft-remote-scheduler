@@ -62,6 +62,12 @@ public class WeekSchedule {
         assignments.add(assignment);
     }
 
+    /** @return whether that person was remote that day, and so whether anything changed */
+    public boolean removeAssignment(String personName, int dayIndex) {
+        return assignments.removeIf(a ->
+                a.getDayIndex() == dayIndex && a.getPersonName().equals(personName));
+    }
+
     /** Remote people per day index, days with nobody included as empty lists. */
     public Map<Integer, List<String>> peopleByDayIndex() {
         Map<Integer, List<String>> byDay = new TreeMap<>();

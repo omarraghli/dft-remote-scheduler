@@ -1,0 +1,46 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-usual-preference
+      author: o.raghli
+      comment: The days somebody asks for every week unless they say otherwise for one. Kept
+               apart from remote_preference so a week's own wishes and the standing ones are
+               never confused, and a week with no rows of its own reads these instead.
+      changes:
+        - createTable:
+            tableName: usual_preference
+            remarks: A day somebody would rather be remote on, every week they do not override.
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_usual_preference
+                    nullable: false
+              - column:
+                  name: person_name
+                  type: VARCHAR(64)
+                  remarks: The person's roster name.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: day_index
+                  type: INTEGER
+                  remarks: Column on the chart, 0 for Lundi.
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: usual_preference
+            columnNames: person_name, day_index
+            constraintName: uk_usual_preference_person_day
+
+      rollback:
+        - dropTable:
+            tableName: usual_preference

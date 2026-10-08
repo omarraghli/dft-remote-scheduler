@@ -199,19 +199,24 @@ body {
 .weekbar-mid {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 2px 8px;
     padding: 0 10px;
+}
+
+.weekbar-range {
+    font-size: 15.5px;
+    font-weight: 650;
+    color: var(--ink);
     white-space: nowrap;
 }
 
 .weekbar-mid b {
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 11.5px;
     letter-spacing: .04em;
     color: var(--accent);
 }
-
-.weekbar-mid span { font-size: 13px; color: var(--ink-55); }
 
 .today {
     padding: 5px 10px;
@@ -471,6 +476,8 @@ body {
     clip: rect(0 0 0 0);
     white-space: nowrap;
 }
+
+.d-date { display: block; margin-top: 1px; font-size: 11px; color: var(--ink-55); }
 
 .d-load { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-35); }
 .d-load b { font-weight: 600; font-size: 13px; color: var(--ink-80); }
@@ -787,7 +794,6 @@ kbd {
     .c-total { width: 34px; }
     .chart tbody th.c-name { font-size: 12.5px; }
     .blk { margin: 0 2px; }
-    .weekbar-mid span { display: none; }
     .weekbar { padding-left: 16px; padding-right: 16px; }
     .who { max-width: 11ch; }
 }
@@ -964,6 +970,8 @@ body.centred {
     text-transform: uppercase;
     color: var(--ink-35);
 }
+
+.panel-week { text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--ink-80); }
 
 .panel-note { margin: 12px 0 0; font-size: 12px; color: var(--ink-35); }
 
@@ -1146,6 +1154,19 @@ a.pill-warn:hover { background: var(--accent-bg); }
 }
 
 .pick-day small { color: var(--ink-55); font-size: 11px; }
+
+.pick-usual {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-left: 14px;
+    border-left: 1px solid var(--rule);
+    font-size: 12.5px;
+    color: var(--ink-80);
+    cursor: pointer;
+}
+
+.panel-usual b { color: var(--ink-80); }
 .pick-day.is-holiday, .pick-day.is-away { opacity: .55; }
 .pick-day.is-onsite span { color: var(--ink-55); }
 
@@ -1271,3 +1292,64 @@ a.pill-warn:hover { background: var(--accent-bg); }
     .users td, .listing td { padding: 0; }
     .u-actions { justify-content: flex-start; }
 }
+
+/* ── Right-click menu on the chart (admins) ──────────────────────────────── */
+
+.chart.is-editable tbody .c-cell { cursor: context-menu; }
+
+.cell-menu {
+    position: fixed;
+    z-index: 50;
+    width: 260px;
+    padding: 6px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+}
+
+.cell-menu form { margin: 0; }
+
+.cm-head {
+    margin: 0;
+    padding: 6px 8px 8px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.cm-item {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 4px;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: var(--radius);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cm-item small { font-size: 11px; color: var(--ink-55); }
+.cm-item:hover, .cm-item:focus-visible { background: var(--err-bg); color: var(--err); }
+
+.cm-absent {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 8px;
+    border-top: 1px solid var(--rule-soft);
+}
+
+.cm-sub, .cm-note { margin: 0; font-size: 12px; color: var(--ink-55); }
+.cm-note { padding: 8px; }
+
+.cm-dates { display: flex; gap: 6px; }
+.cm-dates .field { flex: 1 1 0; min-width: 0; }
+.cm-dates input { padding: 6px 7px; font-size: 12px; }

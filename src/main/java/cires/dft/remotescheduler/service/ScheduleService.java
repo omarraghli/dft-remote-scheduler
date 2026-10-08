@@ -1,6 +1,7 @@
 package cires.dft.remotescheduler.service;
 
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
+import cires.dft.remotescheduler.domain.Vacation;
 import cires.dft.remotescheduler.domain.WeekSchedule;
 import cires.dft.remotescheduler.repository.WeekScheduleRepository;
 import cires.dft.remotescheduler.solver.NoFeasibleScheduleException;
@@ -44,6 +45,7 @@ public class ScheduleService {
     private final RemoteScheduleProperties properties;
     private final HolidayCalendar holidays;
     private final VacationCalendar vacations;
+    private final VacationService leave;
     private final WeekPlanService weekPlans;
     private final RosterService people;
     private final Clock clock;
@@ -53,6 +55,7 @@ public class ScheduleService {
                            RemoteScheduleProperties properties,
                            HolidayCalendar holidays,
                            VacationCalendar vacations,
+                           VacationService leave,
                            WeekPlanService weekPlans,
                            RosterService people,
                            Clock clock) {
@@ -61,6 +64,7 @@ public class ScheduleService {
         this.properties = properties;
         this.holidays = holidays;
         this.vacations = vacations;
+        this.leave = leave;
         this.weekPlans = weekPlans;
         this.people = people;
         this.clock = clock;
@@ -162,6 +166,60 @@ public class ScheduleService {
         }
 
         return List.copyOf(weeks);
+    }
+
+    /**
+     * Takes one person off one remote day of a planned week, leaving the slot empty. Nothing is
+     * moved in to fill it and nothing is re-solved: a removal only lowers counts, so it cannot
+     * break a slot or the run limit, and the row shows the shortfall against its quota.
+     *
+     * @throws ScheduleNotFoundException  if the week has no schedule
+     * @throws IllegalArgumentException   if that person is not remote that day
+     */
+    @Transactional
+    public void emptyCell(LocalDate week, String person, int dayIndex) {
+        LocalDate monday = WeekStarts.of(week);
+        WeekSchedule schedule = repository.findByWeekStart(monday)
+                .orElseThrow(() -> new ScheduleNotFoundException(monday));
+
+        String name = people.activeName(person).orElse(person);
+        if (!schedule.removeAssignment(name, dayIndex)) {
+            throw new IllegalArgumentException(name + " is not remote on "
+                    + dayName(dayIndex) + " in the week of " + monday + ".");
+        }
+
+        log.info("Emptied {}'s remote day on {} in the week of {}", name, dayName(dayIndex), monday);
+    }
+
+    /**
+     * Leave an admin records for somebody who went without declaring it. Unlike leave declared
+     * ahead, the weeks it lands on are usually planned already, so the person's remote days
+     * inside it are taken off there and then rather than left for a re-roll.
+     *
+     * @throws VacationManagementException if the leave itself is refused, in which case no
+     *                                     schedule is touched
+     */
+    @Transactional
+    public Vacation declareAbsence(String person, LocalDate from, LocalDate until) {
+        Vacation vacation = leave.addOrExtend(person, from, until);
+        String name = vacation.getPersonName();
+
+        for (LocalDate date = from; !date.isAfter(until); date = date.plusDays(1)) {
+            LocalDate monday = WeekStarts.of(date);
+            int dayIndex = (int) ChronoUnit.DAYS.between(monday, date);
+
+            boolean removed = repository.findByWeekStart(monday)
+                    .map(s -> s.removeAssignment(name, dayIndex))
+                    .orElse(false);
+            if (removed) log.info("Took {} off their remote day on {}: on leave", name, date);
+        }
+
+        return vacation;
+    }
+
+    private String dayName(int dayIndex) {
+        List<String> days = properties.getDays();
+        return dayIndex >= 0 && dayIndex < days.size() ? days.get(dayIndex) : "day " + dayIndex;
     }
 
     public LocalDate today() {

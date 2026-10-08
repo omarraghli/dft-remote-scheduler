@@ -57,6 +57,7 @@
             <th scope="col" th:each="name, day : ${dayNames}"
                 th:classappend="${holidayNames.containsKey(day.index)} ? 'is-holiday' : ''">
                 <span th:text="${name}">Lundi</span>
+                <span class="d-date" th:text="${dayDates[day.index]}">12 oct.</span>
                 <span class="d-holiday" th:if="${holidayNames.containsKey(day.index)}"
                       th:text="${holidayNames[day.index]}">Marche Verte</span>
                 <!--/* Named once per column rather than beside all eighty boxes. */-->

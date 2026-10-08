@@ -128,9 +128,11 @@
             <a class="step" th:href="@{__${weekBase}__(week=${prevWeek})}" rel="prev"
                th:title="'Week of ' + ${prevWeek}" aria-label="Previous week">&#8249;</a>
 
+            <!--/* The dates lead: people read "W42" as a code, and saved their wishes on the
+                 wrong week because the dates were the small grey part. */-->
             <span class="weekbar-mid">
+                <span class="weekbar-range" th:text="${weekRange}">21 – 25 sept. 2026</span>
                 <b th:text="'W' + ${weekNumber}">W39</b>
-                <span th:text="${weekRange}">21 – 25 sept. 2026</span>
             </span>
 
             <a class="step" th:href="@{__${weekBase}__(week=${nextWeek})}" rel="next"
@@ -141,9 +143,9 @@
             <a class="today" th:href="@{__${weekBase}__}"
                th:classappend="${shownWeek == currentWeek} ? 'is-hidden' : ''">Today</a>
 
-            <span th:if="${shownWeek == currentWeek}" class="pill pill-now">This week</span>
-            <span th:if="${shownWeek > currentWeek}" class="pill">Upcoming</span>
-            <span th:if="${shownWeek < currentWeek}" class="pill pill-past">Past</span>
+            <span class="pill" th:text="${weekRelative}"
+                  th:classappend="${shownWeek == currentWeek} ? 'pill-now'
+                                : (${shownWeek < currentWeek} ? 'pill-past' : '')">This week</span>
         </div>
     </nav>
 </div>

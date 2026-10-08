@@ -64,6 +64,30 @@ public class VacationService implements PersonVacations {
         return saved;
     }
 
+    /**
+     * Leave an admin records after the fact. Leave that touches it end to end is widened rather
+     * than joined by a second row, so the day between them is never mistaken for a day back.
+     */
+    @Transactional
+    public Vacation addOrExtend(String person, LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null) {
+            String rosterName = requireRosterName(person);
+
+            for (Vacation existing : all()) {
+                if (!existing.getPersonName().equals(rosterName)) continue;
+
+                if (existing.getEndDate().plusDays(1).equals(startDate)) {
+                    return update(existing.getId(), rosterName, existing.getStartDate(), endDate);
+                }
+                if (existing.getStartDate().minusDays(1).equals(endDate)) {
+                    return update(existing.getId(), rosterName, startDate, existing.getEndDate());
+                }
+            }
+        }
+
+        return add(person, startDate, endDate);
+    }
+
     @Transactional
     public Vacation update(Long id, String person, LocalDate startDate, LocalDate endDate) {
         Vacation vacation = require(id);

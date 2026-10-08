@@ -28,7 +28,8 @@
          counts before the week is planned. -->
     <section class="wrap prefs" th:if="${canSetPreferences}">
       <div class="panel">
-        <h2 class="panel-title">Mes jours souhaités</h2>
+        <h2 class="panel-title">Mes jours souhaités
+            <span class="panel-week" th:text="'— semaine du ' + ${weekRange}">— semaine du 12 – 16 oct. 2026</span></h2>
 
         <form method="post" th:action="@{/preferences}" class="row-form">
             <input type="hidden" name="week" th:value="${shownWeek}">
@@ -40,14 +41,29 @@
                 <input type="checkbox" name="preferred" th:value="${day.index}"
                        th:checked="${myPreferred.contains(day.index)}">
                 <span th:text="${name}">Lundi</span>
+                <small class="pick-date" th:text="${dayDates[day.index]}">12 oct.</small>
                 <small th:if="${holidayNames.containsKey(day.index)}"
                        th:text="${holidayNames[day.index]}">Marche Verte</small>
                 <small th:if="${myAway.contains(day.index)}">congé</small>
                 <small th:if="${myOnSite.contains(day.index)}">needed on site</small>
             </label>
 
-            <button type="submit" class="btn btn-primary">Save</button>
+            <label class="pick-usual">
+                <input type="checkbox" name="usual" value="true" th:checked="${followsUsual}">
+                <span>Use these every week</span>
+            </label>
+
+            <button type="submit" class="btn btn-primary" th:text="'Save for W' + ${weekNumber}">Save</button>
         </form>
+
+        <p class="panel-note panel-usual" th:if="${followsUsual}">Following your usual days:
+            <b th:text="${#strings.listJoin(myUsualNames, ', ')}">Mardi, Jeudi</b>.
+            Change them here for this week only, or tick <i>Use these every week</i> to change them
+            for good.</p>
+        <p class="panel-note panel-usual" th:if="${!followsUsual and !#lists.isEmpty(myUsual)}">
+            Changed for this week only — your usual days are
+            <b th:text="${#strings.listJoin(myUsualNames, ', ')}">Mardi, Jeudi</b>.
+            Unticking everything goes back to them.</p>
 
         <p class="panel-note">A wish, not a booking. The schedule grants as many as the week has
             room for, and when more people want a day than it has slots, who gets it is down to
@@ -129,7 +145,8 @@
 
     <!-- ── The wall chart ───────────────────────────────────────────────── -->
     <section class="wrap chart-wrap" th:if="${schedule != null}">
-        <table class="chart">
+        <table class="chart"
+               th:classappend="${#authorization.expression('hasRole(''ADMIN'')')} ? 'is-editable'">
             <caption class="sr-only">
                 Remote days per person for the week of <span th:text="${shownWeek}"></span>
             </caption>
@@ -142,6 +159,7 @@
                                   + (${day.holiday != null} ? 'is-holiday' : '')">
                     <span class="d-abbr" th:text="${#strings.toUpperCase(#strings.substring(day.name,0,3))}">LUN</span>
                     <span class="d-full" th:text="${day.name}">Lundi</span>
+                    <span class="d-date" th:text="${dayDates[day.index]}">12 oct.</span>
                     <span class="d-holiday" th:if="${day.holiday != null}"
                           th:text="${day.holiday}" th:title="${day.holiday}">Marche Verte</span>
                     <span class="d-load">
@@ -183,6 +201,8 @@
                                   + (${onLeave} ? 'is-away ' : '')
                                   + (${pinned or backToday} ? 'is-onsite' : '')"
                     th:attr="data-on=${cell.remote},data-jl=${cell.joinLeft},data-jr=${cell.joinRight}"
+                    th:data-person="${row.name}" th:data-day="${cell.dayIndex}"
+                    th:data-date="${shownWeek.plusDays(cell.dayIndex)}" th:data-away="${onLeave}"
                     th:title="${row.name} + ' — ' + ${dayNames[cell.dayIndex]}
                             + (${holidayNames.containsKey(cell.dayIndex)}
                                 ? ' · ' + ${holidayNames[cell.dayIndex]}
@@ -202,6 +222,33 @@
             </tr>
             </tbody>
         </table>
+
+        <!--/* One menu for the whole chart, filled from the cell that was right-clicked. */-->
+        <div class="cell-menu" id="cell-menu" role="menu" hidden sec:authorize="hasRole('ADMIN')">
+            <p class="cm-head" data-cm="label">Sara — Lundi</p>
+
+            <form method="post" th:action="@{/admin/week/empty}" data-cm="empty">
+                <input type="hidden" name="week" th:value="${shownWeek}">
+                <input type="hidden" name="person">
+                <input type="hidden" name="day">
+                <button type="submit" class="cm-item" role="menuitem">Empty this cell
+                    <small>nobody takes the slot</small></button>
+            </form>
+
+            <form method="post" th:action="@{/admin/week/absent}" class="cm-absent" data-cm="absent">
+                <input type="hidden" name="week" th:value="${shownWeek}">
+                <input type="hidden" name="person">
+                <p class="cm-sub">Mark absent — leave they forgot to declare</p>
+                <div class="cm-dates">
+                    <label class="field"><span>From</span><input type="date" name="from" required></label>
+                    <label class="field"><span>To</span><input type="date" name="to" required></label>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" role="menuitem">Mark absent</button>
+            </form>
+
+            <p class="cm-note" data-cm="away">Already on leave —
+                <a th:href="@{/admin/vacations}">edit it in Congés</a>.</p>
+        </div>
 
         <p class="legend">
             <span class="key"><i class="key-on"></i> remote</span>
@@ -271,12 +318,61 @@
 
         document.addEventListener('keydown', function (e) {
             if (e.metaKey || e.ctrlKey || e.altKey) return;
+            if (document.querySelector('.cell-menu:not([hidden])')) return;
             var t = e.target.tagName;
             if (t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA') return;
 
             if (e.key === 'ArrowLeft') location.href = prev;
             if (e.key === 'ArrowRight') location.href = next;
         });
+    })();
+</script>
+
+<script th:inline="javascript" sec:authorize="hasRole('ADMIN')">
+    // Right-click a cell to empty it or mark the person absent. The forms post normally; this
+    // only fills them in and puts the menu where the click was.
+    (function () {
+        var menu = document.getElementById('cell-menu');
+        if (!menu) return;
+
+        var dayNames = /*[[${dayNames}]]*/ [];
+        var part = function (name) { return menu.querySelector('[data-cm="' + name + '"]'); };
+
+        function close() { menu.hidden = true; }
+
+        document.querySelector('.chart').addEventListener('contextmenu', function (e) {
+            var cell = e.target.closest('tbody .c-cell');
+            if (!cell) return;
+            e.preventDefault();
+
+            var d = cell.dataset;
+            var ymd = d.date.split('-');
+            var when = new Date(+ymd[0], ymd[1] - 1, +ymd[2])
+                .toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+            part('label').textContent = d.person + ' — ' + dayNames[+d.day] + ' ' + when;
+
+            menu.querySelectorAll('input[name="person"]').forEach(function (i) { i.value = d.person; });
+            menu.querySelector('input[name="day"]').value = d.day;
+            menu.querySelector('input[name="from"]').value = d.date;
+            menu.querySelector('input[name="to"]').value = d.date;
+
+            part('empty').hidden = d.on !== 'true';
+            part('absent').hidden = d.away === 'true';
+            part('away').hidden = d.away !== 'true';
+
+            menu.hidden = false;
+            var x = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8);
+            var y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+            menu.style.left = Math.max(8, x) + 'px';
+            menu.style.top = Math.max(8, y) + 'px';
+        });
+
+        document.addEventListener('mousedown', function (e) {
+            if (!menu.hidden && !menu.contains(e.target)) close();
+        });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+        window.addEventListener('scroll', close, { passive: true });
+        window.addEventListener('resize', close);
     })();
 </script>
 

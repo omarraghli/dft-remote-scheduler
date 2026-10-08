@@ -2,6 +2,9 @@ package cires.dft.remotescheduler.web;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.IntStream;
 import java.util.Locale;
 
 /**
@@ -37,5 +40,26 @@ final class WeekLabels {
                 : DAY;
 
         return from.format(weekStart) + " – " + DAY_MONTH_YEAR.format(weekEnd);
+    }
+
+    /**
+     * Where the shown week sits from today's: {@code Next week}, {@code In 3 weeks}. "Upcoming"
+     * was true of next week and the one after alike, and people saved their wishes on the
+     * wrong one.
+     */
+    static String relative(LocalDate shownWeek, LocalDate currentWeek) {
+        long weeks = ChronoUnit.WEEKS.between(currentWeek, shownWeek);
+
+        if (weeks == 0) return "This week";
+        if (weeks == 1) return "Next week";
+        if (weeks == -1) return "Last week";
+        return weeks > 0 ? "In " + weeks + " weeks" : -weeks + " weeks ago";
+    }
+
+    /** {@code 12 oct.} for each working day, so a column says which date it is, not only which day. */
+    static List<String> dayDates(LocalDate weekStart, int dayCount) {
+        return IntStream.range(0, dayCount)
+                .mapToObj(i -> DAY_MONTH.format(weekStart.plusDays(i)))
+                .toList();
     }
 }

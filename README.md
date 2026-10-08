@@ -104,6 +104,12 @@ same draw that decides everything else. A wish can never make a week impossible 
 a rule; your three days, the two-in-a-row limit and the ten slots hold whatever anybody asked
 for. Ask for nothing and nothing changes. Ask for all five and you still get three.
 
+**The same days every week?** Tick *Use these every week* when you save and they become your
+**usual days**: every week you have not changed on its own asks for them, including weeks nobody
+has opened yet. Changing a week afterwards changes that week only, and the panel says so — with
+your usual days beside it. Unticking everything in a week, or saving it with exactly your usual
+days, puts it back on them. Saving with the box ticked again replaces the usual days.
+
 What a wish does change is the shape of the week. Left alone the schedule spreads people evenly,
 10/10/10/9/9. If half the team wants Lundi, Lundi fills and the quiet days stay quiet — which is
 the point, but it does mean a week with strong preferences will not look as flat as one without.
@@ -170,6 +176,11 @@ so a row shortened by leave is not flagged as having missed a target it never ha
 does. Because leave is now declared by the person taking it, admins see the same warning on the
 chart and on `/admin/vacations` — every planned week from now on that has somebody remote while
 they are away — whoever entered it. Nothing is re-rolled for you.
+
+**Somebody who went without declaring it** can be marked absent by an admin straight from the
+chart (see below). That leave is recorded for them, and since the week it lands on is usually
+planned already, their remote days inside it are taken off there and then. Leave ending the day
+before, or starting the day after, is widened instead of joined by a second entry.
 
 ---
 
@@ -354,6 +365,13 @@ Navigation is not limited to weeks that exist: land on a week nobody has schedul
 empty state with a **Generate this week** button for exactly that week. That is how you schedule
 any week from the page — the buttons always act on the week you are looking at.
 
+**Admins can right-click any cell** of a planned week:
+
+- **Empty this cell** — on a remote day only. The person comes off that day and nobody takes the
+  slot; nothing else in the week moves, and their row shows the day they are now short.
+- **Mark absent** — the dates start on the day clicked and can run as far as the leave did. See
+  [Congés](#congés). A day already on leave links to `/admin/vacations` instead.
+
 A week that already has a schedule shows **Re-roll** and **Export .xlsx** instead. Generate never
 overwrites: it refuses and says so, and re-rolling is a separate, explicit button. Same rule the
 Thursday job follows, so nothing the team is already using gets discarded by a stray click.
@@ -364,6 +382,9 @@ with the one you are on marked and the ones you cannot open simply absent — th
 who you are signed in as, and the way out. The section links carry the week you are looking at, so
 stepping from the chart to the week grid and back stays on that week instead of snapping to today.
 Under it, on the two pages that have a week, a strip carries **←**, the week, **→** and **Today**.
+The week leads with its dates, and a label says how far it is from today's — *This week*, *Next
+week*, *In 3 weeks*, *Last week* — so next week and the one after cannot be mistaken for each
+other. Each day's column carries its date too, and the wish panel names the week it saves for.
 That is a strip rather than more bar because it belongs to the page and not to the site — and
 because four sections, an email address and a date range do not fit on one line. It is all one
 Thymeleaf fragment, `templates/fragments/chrome.html`, rather than a header per page, which is how

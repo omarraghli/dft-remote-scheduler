@@ -1,9 +1,12 @@
 package cires.dft.remotescheduler.web;
 
 import cires.dft.remotescheduler.config.RemoteScheduleProperties;
+import cires.dft.remotescheduler.domain.Vacation;
 import cires.dft.remotescheduler.service.HolidayCalendar;
 import cires.dft.remotescheduler.service.RosterService;
+import cires.dft.remotescheduler.service.ScheduleNotFoundException;
 import cires.dft.remotescheduler.service.ScheduleService;
+import cires.dft.remotescheduler.service.VacationManagementException;
 import cires.dft.remotescheduler.service.WeekPlan;
 import cires.dft.remotescheduler.service.WeekPlanException;
 import cires.dft.remotescheduler.service.WeekPlanService;
@@ -102,6 +105,9 @@ public class AdminWeekController {
         model.addAttribute("currentWeek", WeekStarts.of(scheduleService.today()));
         model.addAttribute("weekNumber", shownWeek.get(WeekFields.ISO.weekOfWeekBasedYear()));
         model.addAttribute("weekRange", WeekLabels.range(shownWeek, properties.getDays().size()));
+        model.addAttribute("weekRelative",
+                WeekLabels.relative(shownWeek, WeekStarts.of(scheduleService.today())));
+        model.addAttribute("dayDates", WeekLabels.dayDates(shownWeek, properties.getDays().size()));
         model.addAttribute("dayNames", properties.getDays());
         model.addAttribute("holidayNames", holidays.namesByDayIndex(shownWeek));
         model.addAttribute("remotesPerPerson", holidays.remotesPerPerson(shownWeek));
@@ -146,6 +152,62 @@ public class AdminWeekController {
 
         redirect.addAttribute("week", target.toString());
         return "redirect:/admin/week";
+    }
+
+    /**
+     * Right-click → Empty on the chart: one remote day taken back, its slot left free. Lives
+     * here rather than on the chart's controller so it sits behind {@code /admin/**} with the
+     * rest of what an admin changes about a week.
+     */
+    @PostMapping("/empty")
+    public String empty(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
+                        @RequestParam String person,
+                        @RequestParam int day,
+                        RedirectAttributes redirect) {
+
+        LocalDate target = WeekStarts.of(week);
+
+        try {
+            scheduleService.emptyCell(target, person, day);
+            redirect.addFlashAttribute("message",
+                    person + " is no longer remote on " + dayName(day) + ".");
+
+        } catch (ScheduleNotFoundException | IllegalArgumentException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+        }
+
+        redirect.addAttribute("week", target.toString());
+        return "redirect:/";
+    }
+
+    /** Right-click → Mark absent: leave somebody forgot to declare, recorded on their behalf. */
+    @PostMapping("/absent")
+    public String absent(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
+                         @RequestParam String person,
+                         @RequestParam(required = false)
+                         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                         @RequestParam(required = false)
+                         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                         RedirectAttributes redirect) {
+
+        LocalDate target = WeekStarts.of(week);
+
+        try {
+            Vacation vacation = scheduleService.declareAbsence(person, from, to);
+            redirect.addFlashAttribute("message", vacation.getPersonName() + " is on leave "
+                    + vacation.getStartDate() + " to " + vacation.getEndDate() + ".");
+
+        } catch (VacationManagementException e) {
+            redirect.addFlashAttribute("error", e.getMessage());
+        }
+
+        redirect.addAttribute("week", target.toString());
+        return "redirect:/";
+    }
+
+    private String dayName(int dayIndex) {
+        List<String> days = properties.getDays();
+        return dayIndex >= 0 && dayIndex < days.size() ? days.get(dayIndex) : "day " + dayIndex;
     }
 
     /** Folds the ticked boxes back into the day indices each person holds. */

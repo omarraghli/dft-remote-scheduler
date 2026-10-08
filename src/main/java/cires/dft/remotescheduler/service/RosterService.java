@@ -31,6 +31,7 @@ public class RosterService {
     private static final List<String[]> NAME_COLUMNS = List.of(
             new String[] {"remote_assignment", "person_name"},
             new String[] {"remote_preference", "person_name"},
+            new String[] {"usual_preference", "person_name"},
             new String[] {"on_site_day", "person_name"},
             new String[] {"vacation", "person_name"});
 

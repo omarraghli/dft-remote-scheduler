@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDate;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +28,7 @@ class RosterServiceTest extends AbstractPostgresIntegrationTest {
     @Autowired private RosterService roster;
     @Autowired private ScheduleService schedules;
     @Autowired private VacationService vacations;
+    @Autowired private WeekPlanService weekPlans;
     @Autowired private UserService userService;
     @Autowired private AppUserRepository users;
     @Autowired private JdbcTemplate jdbc;
@@ -113,6 +115,7 @@ class RosterServiceTest extends AbstractPostgresIntegrationTest {
         AppUser adnan = person("Adnan");
         schedules.generate(QUIET_WEEK, true, "test");
         Vacation leave = vacations.add("Adnan", LocalDate.of(2031, 3, 3), LocalDate.of(2031, 3, 4));
+        weekPlans.setUsual("Adnan", Set.of(1, 3));
 
         try {
             roster.rename(adnan.getId(), "Adnane");
@@ -120,11 +123,13 @@ class RosterServiceTest extends AbstractPostgresIntegrationTest {
             var perPerson = schedules.findByWeek(QUIET_WEEK).orElseThrow().remoteDaysPerPerson();
             assertThat(perPerson).containsKey("Adnane").doesNotContainKey("Adnan");
             assertThat(vacations.require(leave.getId()).getPersonName()).isEqualTo("Adnane");
+            assertThat(weekPlans.usualFor("Adnane")).containsExactly(1, 3);
             assertThat(roster.activeNames()).contains("Adnane").doesNotContain("Adnan");
 
         } finally {
             roster.rename(adnan.getId(), "Adnan");
             vacations.delete(leave.getId());
+            weekPlans.setUsual("Adnan", Set.of());
         }
     }
 
