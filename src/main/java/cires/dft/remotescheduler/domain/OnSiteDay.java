@@ -14,9 +14,10 @@ import java.time.LocalDate;
 /**
  * A day somebody has to be in the office, in one week.
  *
- * <p>The opposite of a {@link RemotePreference} in every way that matters: an admin sets it, and
- * it is hard — the solver treats the day as closed for that person, exactly as it treats a public
- * holiday for everyone. Only an admin can create one, which is why it records who did.
+ * <p>The opposite of a {@link RemotePreference} in every way that matters: it is hard — the
+ * solver treats the day as closed for that person, exactly as it treats a public holiday for
+ * everyone. An admin can set one for anybody and people set their own; it records who did,
+ * because a day somebody else required is not the person's to take back.
  */
 @Entity
 @Table(name = "on_site_day",

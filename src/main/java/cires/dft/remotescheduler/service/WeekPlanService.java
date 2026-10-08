@@ -86,6 +86,16 @@ public class WeekPlanService {
         return new WeekPlan(preferred, onSite);
     }
 
+    /** Who required each of this person's on-site days in this week, by day index. */
+    @Transactional(readOnly = true)
+    public Map<Integer, String> onSiteSetBy(String person, LocalDate week) {
+        Map<Integer, String> setBy = new HashMap<>();
+        for (OnSiteDay day : onSiteDays.findByWeekStart(WeekStarts.of(week))) {
+            if (day.getPersonName().equals(person)) setBy.put(day.getDayIndex(), day.getSetBy());
+        }
+        return setBy;
+    }
+
     /** The days this person asks for every week they do not say otherwise. */
     @Transactional(readOnly = true)
     public Set<Integer> usualFor(String person) {

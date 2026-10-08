@@ -23,55 +23,90 @@
         </p>
     </div>
 
-    <!-- ── Mes jours souhaités ──────────────────────────────────────────── -->
-    <!-- First on the page: it is the one thing on it that anybody can act on, and it only
-         counts before the week is planned. -->
+    <!-- ── Mes jours ──────────────────────────────────────────────────── -->
+    <!-- First on the page: it is the one thing on it that anybody can act on. -->
     <section class="wrap prefs" th:if="${canSetPreferences}">
       <div class="panel">
-        <h2 class="panel-title">Mes jours souhaités
+        <h2 class="panel-title">Mes jours
             <span class="panel-week" th:text="'— semaine du ' + ${weekRange}">— semaine du 12 – 16 oct. 2026</span></h2>
 
-        <form method="post" th:action="@{/preferences}" class="row-form">
+        <p class="prefs-keys">
+            <span><i class="seg-key seg-key-remote"></i><b>Remote</b> a wish — the draw decides</span>
+            <span><i class="seg-key seg-key-site"></i><b>Bureau</b> a promise — never planned remote that day</span>
+        </p>
+
+        <form method="post" th:action="@{/preferences}">
             <input type="hidden" name="week" th:value="${shownWeek}">
 
-            <label class="pick-day" th:each="name, day : ${dayNames}"
-                   th:classappend="(${holidayNames.containsKey(day.index)} ? 'is-holiday ' : '')
-                                 + (${myAway.contains(day.index)} ? 'is-away ' : '')
-                                 + (${myOnSite.contains(day.index)} ? 'is-onsite' : '')">
-                <input type="checkbox" name="preferred" th:value="${day.index}"
-                       th:checked="${myPreferred.contains(day.index)}">
-                <span th:text="${name}">Lundi</span>
-                <small class="pick-date" th:text="${dayDates[day.index]}">12 oct.</small>
-                <small th:if="${holidayNames.containsKey(day.index)}"
-                       th:text="${holidayNames[day.index]}">Marche Verte</small>
-                <small th:if="${myAway.contains(day.index)}">congé</small>
-                <small th:if="${myOnSite.contains(day.index)}">needed on site</small>
-            </label>
+            <div class="day-cards">
+                <div class="day-card" role="radiogroup" th:each="name, day : ${dayNames}"
+                     th:aria-label="${name} + ' ' + ${dayDates[day.index]}"
+                     th:with="i=${day.index},
+                              holiday=${holidayNames.containsKey(day.index)},
+                              off=${myAway.contains(day.index)},
+                              pinned=${myLockedSite.contains(day.index)},
+                              back=${returnDays.containsKey(myRosterName)
+                                     and returnDays[myRosterName] == day.index},
+                              site=${myOnSite.contains(day.index)},
+                              wish=${myPreferred.contains(day.index)}">
 
-            <label class="pick-usual">
-                <input type="checkbox" name="usual" value="true" th:checked="${followsUsual}">
-                <span>Use these every week</span>
-            </label>
+                    <div class="dc-head">
+                        <span class="dc-day" th:text="${name}">Lundi</span>
+                        <span class="dc-date" th:text="${dayDates[i]}">12 oct.</span>
+                    </div>
 
-            <button type="submit" class="btn btn-primary" th:text="'Save for W' + ${weekNumber}">Save</button>
+                    <p class="dc-locked" th:if="${holiday}" th:text="${holidayNames[i]}">Marche Verte</p>
+                    <p class="dc-locked" th:if="${!holiday and off}">congé</p>
+                    <p class="dc-locked is-site" th:if="${!holiday and !off and pinned}"
+                       title="Required by an admin — ask them to lift it">Bureau · set by an admin</p>
+                    <p class="dc-locked is-site" th:if="${!holiday and !off and !pinned and back}"
+                       title="The first day back from leave is always an office day">Bureau · back from leave</p>
+
+                    <div class="seg" th:unless="${holiday or off or pinned or back}">
+                        <label class="seg-opt seg-remote">
+                            <input type="radio" th:name="'d' + ${i}" value="remote"
+                                   th:checked="${wish and !site}">
+                            <span>Remote</span>
+                        </label>
+                        <label class="seg-opt seg-none" title="No preference">
+                            <input type="radio" th:name="'d' + ${i}" value="none"
+                                   th:checked="${!wish and !site}">
+                            <span>Any</span>
+                        </label>
+                        <label class="seg-opt seg-site">
+                            <input type="radio" th:name="'d' + ${i}" value="site"
+                                   th:checked="${site}">
+                            <span>Bureau</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prefs-actions">
+                <label class="pick-usual">
+                    <input type="checkbox" name="usual" value="true" th:checked="${followsUsual}">
+                    <span>Use my remote days every week</span>
+                </label>
+                <button type="submit" class="btn btn-primary" th:text="'Save for W' + ${weekNumber}">Save</button>
+            </div>
         </form>
 
-        <p class="panel-note panel-usual" th:if="${followsUsual}">Following your usual days:
+        <p class="panel-note panel-usual" th:if="${followsUsual}">Following your usual remote days:
             <b th:text="${#strings.listJoin(myUsualNames, ', ')}">Mardi, Jeudi</b>.
-            Change them here for this week only, or tick <i>Use these every week</i> to change them
-            for good.</p>
+            Change them here for this week only, or tick <i>Use my remote days every week</i> to
+            change them for good.</p>
         <p class="panel-note panel-usual" th:if="${!followsUsual and !#lists.isEmpty(myUsual)}">
-            Changed for this week only — your usual days are
+            Changed for this week only — your usual remote days are
             <b th:text="${#strings.listJoin(myUsualNames, ', ')}">Mardi, Jeudi</b>.
-            Unticking everything goes back to them.</p>
+            Setting every day to <i>Any</i> goes back to them.</p>
 
-        <p class="panel-note">A wish, not a booking. The schedule grants as many as the week has
-            room for, and when more people want a day than it has slots, who gets it is down to
-            the draw. Asking for none, or for all five, still gets you
-            <b th:text="${remotesPerPerson}">3</b> days.</p>
+        <p class="panel-note">Asking for no remote days, or for all five, still gets you
+            <b th:text="${remotesPerPerson}">3</b>. Bureau days come out of those: the schedule
+            plans your remote days around them.</p>
 
-        <p class="panel-note" th:if="${schedule != null}">This week is already planned, so what
-            you tick counts the next time an admin re-rolls it.</p>
+        <p class="panel-note" th:if="${schedule != null}">This week is already planned. A Bureau
+            day takes effect now — if you were remote that day, it comes off. Remote wishes count
+            the next time an admin re-rolls it.</p>
       </div>
     </section>
 

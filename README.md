@@ -126,6 +126,14 @@ until it is pressed, and a box left unticked is a box cleared. The office box is
 were a public holiday for them alone. The chart marks those cells with a dot, so a row that looks
 short has a visible reason.
 
+**Everyone can mark their own office days**, without an admin. The panel at the top of the chart,
+*Mes jours*, has one card per day with three choices: **Remote** (a wish), **Any**, and **Bureau**
+(a promise — never planned remote that day, as hard as an admin's pin). A day an admin required
+shows as *Bureau · set by an admin* and cannot be lifted by the person it is about; holidays,
+leave and the first day back from leave are shown on their card and cannot be picked. Bureau on a
+day you are on leave, or on a férié, is refused. Bureau days are per week; *Use my remote days
+every week* only ever saves the remote wishes.
+
 **Two pins on one person can leave a week with no answer**, and the page says so instead of
 letting you find out on Thursday. Three remote days out of five, never three in a row, means
 holding somebody in the office on Lundi *and* Vendredi leaves them Mardi to Jeudi — a run of
@@ -137,7 +145,9 @@ not blamed on it, and the grid carries a standing warning while it stays that wa
 **If the week was already planned**, both pages say so — the grid links straight to it when a pin
 lands on a day that person is already remote on. The week is never re-rolled for you: those
 assignments are what the team is working to, and discarding them is a decision, not a side
-effect. Until somebody re-rolls, nothing either page records changes the chart.
+effect. Until somebody re-rolls, nothing the grid records changes the chart. The one exception
+is somebody marking their own Bureau day on a day they were planned remote: that day comes off
+their row at once, nobody is moved in to fill it, and the save says so.
 
 ---
 

@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /** The page the team looks at. */
 @Controller
@@ -129,6 +131,13 @@ public class ScheduleViewController {
         model.addAttribute("followsUsual",
                 !myUsual.isEmpty() && !weekPlans.hasOwnWishes(me, shownWeek));
         model.addAttribute("myOnSite", me == null ? Set.of() : plan.onSiteFor(me));
+        // Office days somebody else required: shown, but not the person's to take back.
+        model.addAttribute("myLockedSite", me == null ? Set.of()
+                : weekPlans.onSiteSetBy(me, shownWeek).entrySet().stream()
+                        .filter(e -> e.getValue() == null
+                                || !e.getValue().equalsIgnoreCase(principal.getUsername()))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toSet()));
         model.addAttribute("canSetPreferences",
                 me != null && !shownWeek.isBefore(WeekStarts.of(scheduleService.today())));
 
@@ -204,6 +213,7 @@ public class ScheduleViewController {
                               @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate week,
                               @RequestParam(required = false) Set<Integer> preferred,
                               @RequestParam(defaultValue = "false") boolean usual,
+                              @RequestParam Map<String, String> params,
                               @AuthenticationPrincipal AppUserPrincipal principal,
                               RedirectAttributes redirectAttributes) {
 
@@ -218,27 +228,40 @@ public class ScheduleViewController {
             return "redirect:/";
         }
 
-        Set<Integer> days = preferred == null ? Set.of() : preferred;
+        // Each day posts as d0..d4 = remote | none | site; a bare list of preferred days is
+        // still understood.
+        Set<Integer> remote = new TreeSet<>(preferred == null ? Set.of() : preferred);
+        Set<Integer> site = new TreeSet<>();
+        for (int day = 0; day < properties.getDays().size(); day++) {
+            String choice = params.get("d" + day);
+            if ("remote".equals(choice)) remote.add(day);
+            if ("site".equals(choice)) site.add(day);
+        }
+        remote.removeAll(site);
+
         String when = WeekLabels.range(target, properties.getDays().size());
 
         try {
             // The template goes first, so the week saved next equals it and stores nothing of
             // its own — it then keeps following the usual days rather than a copy of them.
-            if (usual) weekPlans.setUsual(me, days);
+            if (usual) weekPlans.setUsual(me, remote);
 
-            scheduleService.setWeekPlan(target, me, days,
-                    weekPlans.forWeek(target).onSiteFor(me),
-                    principal.getUsername());
+            ScheduleService.OwnWeekResult result = scheduleService.setOwnWeek(
+                    target, me, principal.getUsername(), remote, site);
 
-            String saved = usual
-                    ? "Saved as your usual days, for " + when + " and every week you do not change."
-                    : "Saved for " + when + ".";
-            redirectAttributes.addFlashAttribute("message",
-                    scheduleService.findByWeek(target).isPresent()
-                            ? saved + " This week is already planned, so it takes a re-roll for "
-                                    + "them to count."
-                            : saved + " They are taken into account the next time this week is "
-                                    + "planned.");
+            StringBuilder saved = new StringBuilder(usual
+                    ? "Saved as your usual remote days, for " + when
+                            + " and every week you do not change."
+                    : "Saved for " + when + ".");
+            if (!result.removedDays().isEmpty()) {
+                saved.append(" You were remote on ")
+                        .append(String.join(" and ", result.removedDays()))
+                        .append(" — that day is now off your schedule.");
+            }
+            if (scheduleService.findByWeek(target).isPresent()) {
+                saved.append(" Remote wishes count the next time an admin re-rolls this week.");
+            }
+            redirectAttributes.addFlashAttribute("message", saved.toString());
 
         } catch (WeekPlanException | IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());

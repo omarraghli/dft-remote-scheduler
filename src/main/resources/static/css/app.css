@@ -1141,19 +1141,7 @@ a.pill-warn:hover { background: var(--accent-bg); }
 /* The same choice on the schedule page, where it is one person picking their own week. It
    leads the page, so it keeps clear of the week strip above it. */
 .prefs { margin-top: 24px; }
-.prefs .row-form { align-items: center; gap: 12px 22px; }
-.prefs .row-form .btn { margin-left: auto; }
 
-
-.pick-day {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 13.5px;
-    cursor: pointer;
-}
-
-.pick-day small { color: var(--ink-55); font-size: 11px; }
 
 .pick-usual {
     display: flex;
@@ -1167,8 +1155,6 @@ a.pill-warn:hover { background: var(--accent-bg); }
 }
 
 .panel-usual b { color: var(--ink-80); }
-.pick-day.is-holiday, .pick-day.is-away { opacity: .55; }
-.pick-day.is-onsite span { color: var(--ink-55); }
 
 /* Scoped through .key so it outweighs `.key i`, which sets display on every swatch. */
 .key .key-site {
@@ -1353,3 +1339,113 @@ a.pill-warn:hover { background: var(--accent-bg); }
 .cm-dates { display: flex; gap: 6px; }
 .cm-dates .field { flex: 1 1 0; min-width: 0; }
 .cm-dates input { padding: 6px 7px; font-size: 12px; }
+
+/* ── Mes jours: one card per day, Remote / Any / Bureau ─────────────────── */
+
+.prefs-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    margin: -4px 0 14px;
+    font-size: 12px;
+    color: var(--ink-55);
+}
+
+.prefs-keys span { display: inline-flex; align-items: center; gap: 6px; }
+.prefs-keys b { color: var(--ink-80); font-weight: 600; }
+
+.seg-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.seg-key-remote { background: var(--bar); }
+.seg-key-site { background: var(--ink); }
+
+.day-cards {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.day-card {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper);
+}
+
+.day-card:has(.seg-remote input:checked) { border-color: var(--bar); }
+.day-card:has(.seg-site input:checked) { border-color: var(--ink); }
+
+.dc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.dc-day { font-size: 13.5px; font-weight: 600; }
+.dc-date { font-size: 11.5px; color: var(--ink-55); white-space: nowrap; }
+
+.dc-locked {
+    margin: 0;
+    padding: 6px 0;
+    border-radius: var(--radius);
+    background: var(--rule-soft);
+    font-size: 12px;
+    text-align: center;
+    color: var(--ink-55);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dc-locked.is-site { background: var(--ink); color: var(--paper); opacity: .8; }
+
+.seg {
+    display: flex;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.seg-opt { position: relative; flex: 1 1 0; min-width: 0; }
+.seg-opt + .seg-opt { border-left: 1px solid var(--rule); }
+
+.seg-opt input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.seg-opt span {
+    display: block;
+    padding: 6px 2px;
+    font-size: 12px;
+    text-align: center;
+    color: var(--ink-55);
+    transition: background .12s ease, color .12s ease;
+}
+
+.seg-opt:hover span { background: var(--rule-soft); color: var(--ink); }
+.seg-none input:checked + span { background: var(--rule-soft); color: var(--ink); }
+.seg-remote input:checked + span { background: var(--bar); color: #fff; }
+.seg-site input:checked + span { background: var(--ink); color: var(--paper); }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.prefs-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 12px 22px;
+    margin-top: 14px;
+}
+
+
+@media (max-width: 760px) {
+    .day-cards { grid-template-columns: 1fr; gap: 6px; }
+    .day-card { flex-direction: row; align-items: center; justify-content: space-between; }
+    .dc-head { flex-direction: column; gap: 0; }
+    .day-card .seg, .day-card .dc-locked { flex: 0 1 230px; }
+    .prefs-actions { justify-content: space-between; }
+}

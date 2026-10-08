@@ -81,7 +81,7 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
             mvc.perform(get("/").param("week", QUIET_WEEK.toString()).with(user(account)))
                     .andExpect(status().isOk())
                     .andExpect(content().string(containsString("action=\"/preferences\"")))
-                    .andExpect(content().string(containsString("A wish, not a booking")));
+                    .andExpect(content().string(containsString("a promise")));
 
             mvc.perform(post("/preferences").with(user(account)).with(csrf())
                             .param("week", QUIET_WEEK.toString())
@@ -107,13 +107,13 @@ class SchedulePageTest extends AbstractPostgresIntegrationTest {
                             .param("preferred", "1")
                             .param("preferred", "3")
                             .param("usual", "true"))
-                    .andExpect(flash().attribute("message", containsString("usual days")));
+                    .andExpect(flash().attribute("message", containsString("usual remote days")));
 
             assertThat(weekPlans.usualFor("Rajae")).containsExactly(1, 3);
 
             mvc.perform(get("/").param("week", QUIET_WEEK.plusWeeks(2).toString()).with(user(account)))
                     .andExpect(status().isOk())
-                    .andExpect(content().string(containsString("Following your usual days")))
+                    .andExpect(content().string(containsString("Following your usual remote days")))
                     .andExpect(content().string(containsString("Mardi, Jeudi")));
 
         } finally {

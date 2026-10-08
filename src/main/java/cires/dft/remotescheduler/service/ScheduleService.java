@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Generates weekly schedules and stores them.
@@ -168,6 +169,74 @@ public class ScheduleService {
         return List.copyOf(weeks);
     }
 
+    /** What saving your own week changed beyond the week plan: remote days given back. */
+    public record OwnWeekResult(List<String> removedDays) {
+    }
+
+    /**
+     * Somebody setting their own week: the days they would like remote and the days they will
+     * be in the office. A day somebody else required stays required — it is not theirs to take
+     * back — and an office day on a holiday or during their leave is refused as the mistake it
+     * is. If the week is already planned, a remote day they now say they are in the office for
+     * comes off at once; nobody is moved in to fill it.
+     *
+     * @param myUsername who is saving, compared with each pin's {@code setBy}
+     * @throws WeekPlanException if the change is refused, in which case nothing is stored
+     */
+    @Transactional
+    public OwnWeekResult setOwnWeek(LocalDate week, String me, String myUsername,
+                                    Set<Integer> remote, Set<Integer> site) {
+        LocalDate monday = WeekStarts.of(week);
+
+        Map<Integer, String> closed = holidays.namesByDayIndex(monday);
+        Set<Integer> away = vacations.awayDays(monday).getOrDefault(me, Set.of());
+        for (int day : site) {
+            if (closed.containsKey(day)) {
+                throw new WeekPlanException(dayName(day) + " is " + closed.get(day)
+                        + " — the office is closed.");
+            }
+            if (away.contains(day)) {
+                throw new WeekPlanException("You are on leave on " + dayName(day)
+                        + ". Change your leave first if you will be in after all.");
+            }
+        }
+
+        Set<Integer> onSite = new TreeSet<>(site);
+        weekPlans.onSiteSetBy(me, monday).forEach((day, setBy) -> {
+            if (setBy == null || !setBy.equalsIgnoreCase(myUsername)) onSite.add(day);
+        });
+
+        Set<Integer> preferred = new TreeSet<>(remote);
+        preferred.removeAll(onSite);
+
+        try {
+            setWeekPlan(monday, me, preferred, onSite, myUsername);
+        } catch (UnplannableWeekException e) {
+            // Wishes never make a week unplannable, so the office days did.
+            throw new UnplannableWeekException("Bureau on " + dayNames(onSite)
+                    + " leaves no way to plan the week within the rules — your remote days, the"
+                    + " limit on days in a row and the slots cannot all hold. Nothing was saved;"
+                    + " try other days.");
+        }
+
+        List<String> removed = new ArrayList<>();
+        repository.findByWeekStart(monday).ifPresent(schedule -> {
+            for (int day : onSite) {
+                if (schedule.removeAssignment(me, day)) removed.add(dayName(day));
+            }
+        });
+        if (!removed.isEmpty()) {
+            log.info("{} is in the office on {} in the week of {}; remote day(s) given back",
+                    me, removed, monday);
+        }
+
+        return new OwnWeekResult(removed);
+    }
+
+    private String dayNames(Set<Integer> days) {
+        return String.join(" and ", days.stream().map(this::dayName).toList());
+    }
+
     /**
      * Takes one person off one remote day of a planned week, leaving the slot empty. Nothing is
      * moved in to fill it and nothing is re-solved: a removal only lowers counts, so it cannot
@@ -266,7 +335,7 @@ public class ScheduleService {
 
         if (wasPlannable) {
             unplannable(monday).ifPresent(why -> {
-                throw new WeekPlanException(
+                throw new UnplannableWeekException(
                         "That leaves the week of " + monday + " with no schedule at all — "
                                 + why + ".");
             });
